@@ -1,0 +1,15 @@
+services:
+  nitrolog:
+    image: rayderc/nitrolog:latest
+    container_name: nitrolog
+    ports:
+      - "7100:7100"
+    volumes:
+      - nitrolog_data:/config
+    # environment:
+    #   Only needed if you open NitroLog over plain http on your LAN instead of through HTTPS:
+    #   - SESSION_COOKIE_SECURE=false
+    restart: unless-stopped
+
+volumes:
+  nitrolog_data:
