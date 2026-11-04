@@ -76,4 +76,4 @@ Mobile breakpoints: 900px (sidebar becomes a drawer, bottom tab bar appears) and
 - `.gitattributes` forces LF on `*.sh` and `Dockerfile`.
 - The container runs as the `node` user. Named volumes pick up `/config`'s ownership from the image; bind mounts need UID 1000 write access.
 - `docker-entrypoint.sh` generates `SESSION_SECRET` into `/config/.session_secret` when it isn't set.
-- Build for both `linux/amd64` and `linux/arm64`.
+- Publish like the owner's other apps: `docker build -t rayderc/nitrolog:latest .` then `docker push rayderc/nitrolog:latest`. The image is `linux/amd64` only.

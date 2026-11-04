@@ -104,7 +104,8 @@ Without `DATABASE_PATH`, the database is created as `nitrolog.db` in the project
 ## Building the image
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t rayderc/nitrolog:latest --push .
+docker build -t rayderc/nitrolog:latest .
+docker push rayderc/nitrolog:latest
 ```
 
 ## Tech stack
