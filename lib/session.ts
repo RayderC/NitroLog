@@ -16,16 +16,21 @@ if (sessionPassword.length < 32) {
   throw new Error("SESSION_SECRET must be at least 32 characters");
 }
 
-// NitroLog is meant to sit behind HTTPS, so production cookies are Secure unless explicitly turned off.
-const secureEnv = process.env.SESSION_COOKIE_SECURE;
-
 export const sessionOptions: SessionOptions = {
   password: sessionPassword,
   cookieName: "nitrolog_session",
   ttl: 60 * 60 * 24 * 30,
-  cookieOptions: {
-    secure: secureEnv == null ? !isDev : secureEnv === "true",
-    httpOnly: true,
-    sameSite: "lax",
-  },
+  cookieOptions: { httpOnly: true, sameSite: "lax" },
 };
+
+/**
+ * Cookies are Secure when the request came over HTTPS, which a Cloudflare Tunnel reports in
+ * X-Forwarded-Proto. Browsers silently drop Secure cookies on plain HTTP, so always setting it would
+ * make sign-in fail with no error when someone opens the server by its LAN address.
+ * SESSION_COOKIE_SECURE overrides this either way.
+ */
+export function sessionOptionsFor(forwardedProto: string | null): SessionOptions {
+  const env = process.env.SESSION_COOKIE_SECURE;
+  const secure = env != null ? env === "true" : forwardedProto?.split(",")[0].trim() === "https";
+  return { ...sessionOptions, cookieOptions: { ...sessionOptions.cookieOptions, secure } };
+}

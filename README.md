@@ -44,12 +44,12 @@ docker run -d \
 
 Open **http://localhost:7100** and create the admin account.
 
-If you open NitroLog over plain HTTP from another device on your network, sign-in won't stick, because session cookies are HTTPS-only by default. Either use HTTPS or set `SESSION_COOKIE_SECURE=false`.
+You can sign in over plain HTTP on your own network, or over HTTPS through a reverse proxy or tunnel. Session cookies are marked HTTPS-only whenever the request arrived over HTTPS. Plain HTTP isn't encrypted, so only use it on a network you trust.
 
 ## Portainer and Cloudflare Tunnel
 
 1. In Portainer, go to **Stacks → Add stack** and paste [docker-compose.yml](docker-compose.yml).
-2. Open NitroLog locally through `http://localhost:7100` or an SSH tunnel and **create the admin account before you publish it**. Until an admin exists, whoever reaches `/setup` first becomes the admin.
+2. Open NitroLog at `http://<host-ip>:7100` and **create the admin account before you publish it**. Until an admin exists, whoever reaches `/setup` first becomes the admin.
 3. Add a public hostname to your Cloudflare Tunnel pointing to `http://<host-ip>:7100`, or `http://nitrolog:7100` if `cloudflared` shares a Docker network with the container.
 
 Leave the tunnel's **HTTP Host Header** setting empty. NitroLog compares it with the browser's origin to block cross-site requests, so overriding it makes every save fail with "Bad origin".
@@ -68,7 +68,7 @@ You get one notification when something becomes due soon, one when it becomes ov
 |---|---|---|
 | `DATABASE_PATH` | `/config/nitrolog.db` | SQLite database path |
 | `SESSION_SECRET` | generated | Cookie encryption secret, at least 32 characters. If unset, one is generated and saved to `/config/.session_secret` |
-| `SESSION_COOKIE_SECURE` | `true` in production | Set to `false` only when serving over plain HTTP |
+| `SESSION_COOKIE_SECURE` | automatic | Leave unset to follow how each request arrived, or set `true` or `false` to force it |
 | `PORT` | `7100` | Listening port |
 | `UPLOAD_DIR` | `/config/uploads` | Where photos and documents are stored |
 | `PUSH_CONTACT` | project URL | `mailto:` or `https:` contact sent to push services |

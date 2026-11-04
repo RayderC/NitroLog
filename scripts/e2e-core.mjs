@@ -36,9 +36,11 @@ r = await anon("POST", "/api/setup", { username: "x", password: "short" });
 check("setup rejects a weak account", r.status === 400);
 r = await admin("POST", "/api/setup", { username: "Admin", password: PW, distanceUnit: "mi", volumeUnit: "gal" }, { Origin: "https://evil.example", Host: "nitrolog.example" });
 check("setup rejects a cross-site origin", r.status === 403);
-r = await admin("POST", "/api/setup", { username: "Admin", password: PW, distanceUnit: "mi", volumeUnit: "gal" });
+r = await admin("POST", "/api/setup", { username: "Admin", password: PW, distanceUnit: "mi", volumeUnit: "gal" }, { "X-Forwarded-Proto": "https" });
 check("setup creates the admin", r.status === 200, r.data);
-check("session cookie is HttpOnly and Secure", /HttpOnly/i.test(r.setCookie) && /Secure/i.test(r.setCookie), r.setCookie);
+check("over HTTPS the session cookie is HttpOnly and Secure", /HttpOnly/i.test(r.setCookie) && /Secure/i.test(r.setCookie), r.setCookie);
+r = await client()("POST", "/api/login", { username: "admin", password: PW });
+check("over plain HTTP the cookie isn't Secure, or browsers would drop it", r.status === 200 && /HttpOnly/i.test(r.setCookie) && !/Secure/i.test(r.setCookie), r.setCookie);
 r = await anon("POST", "/api/setup", { username: "second", password: PW });
 check("setup can't run twice", r.status === 403);
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getIronSession } from "iron-session";
-import { sessionOptions, type SessionUser } from "./session";
+import { sessionOptionsFor, type SessionUser } from "./session";
 import { db } from "./db";
 import { checkRateLimit } from "./rateLimit";
 
@@ -24,7 +24,8 @@ export const bad = (msg: string) => new HttpError(400, msg);
 export const notFound = (msg = "Not found") => new HttpError(404, msg);
 
 export async function getSession() {
-  return getIronSession<{ user?: SessionUser }>(await cookies(), sessionOptions);
+  const proto = (await headers()).get("x-forwarded-proto");
+  return getIronSession<{ user?: SessionUser }>(await cookies(), sessionOptionsFor(proto));
 }
 
 export function sameOrigin(req: NextRequest) {
