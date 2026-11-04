@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { clientIp, getSession, HttpError, sameOrigin } from "@/lib/api";
+import { clientIp, getSession, HttpError } from "@/lib/api";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { createUser } from "@/lib/repo/users";
 
@@ -11,7 +11,6 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!sameOrigin(req)) return NextResponse.json({ message: "Bad origin" }, { status: 403 });
   if (!checkRateLimit(`setup:${clientIp(req)}`, 10, 60_000)) return NextResponse.json({ message: "Slow down" }, { status: 429 });
   const { username, password, distanceUnit, volumeUnit } = await req.json().catch(() => ({}));
   try {

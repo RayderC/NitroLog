@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { getIronSession } from "iron-session";
-import { sessionOptionsFor, type SessionUser } from "./session";
+import { sessionOptions, type SessionUser } from "./session";
 import { db } from "./db";
 import { checkRateLimit } from "./rateLimit";
 
@@ -24,11 +24,12 @@ export const bad = (msg: string) => new HttpError(400, msg);
 export const notFound = (msg = "Not found") => new HttpError(404, msg);
 
 export async function getSession() {
-  const proto = (await headers()).get("x-forwarded-proto");
-  return getIronSession<{ user?: SessionUser }>(await cookies(), sessionOptionsFor(proto));
+  return getIronSession<{ user?: SessionUser }>(await cookies(), sessionOptions);
 }
 
 export function sameOrigin(req: NextRequest) {
+  // Browsers set this themselves and pages can't fake it. It stays right when a proxy or tunnel rewrites Host.
+  if (req.headers.get("sec-fetch-site") === "same-origin") return true;
   const origin = req.headers.get("origin");
   if (!origin) return true;
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
