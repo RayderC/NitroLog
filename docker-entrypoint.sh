@@ -4,6 +4,14 @@ set -e
 CONFIG_DIR="${CONFIG_DIR:-/config}"
 SECRET_FILE="$CONFIG_DIR/.session_secret"
 
+# Starts as root only to make the data folder writable, since a bind-mounted folder is usually
+# owned by root. The app itself then runs as the unprivileged node user.
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p "$CONFIG_DIR"
+  find "$CONFIG_DIR" ! -user node -exec chown node:node {} + || echo "Warning: couldn't take ownership of $CONFIG_DIR" >&2
+  exec setpriv --reuid=node --regid=node --init-groups "$0" "$@"
+fi
+
 mkdir -p "$CONFIG_DIR"
 
 if [ -z "${SESSION_SECRET:-}" ]; then

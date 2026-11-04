@@ -46,6 +46,5 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
 
 EXPOSE 7100
 
-USER node
-
+# No USER line: docker-entrypoint.sh fixes /config's ownership as root, then drops to the node user.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

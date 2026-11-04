@@ -54,7 +54,7 @@ If you open NitroLog over plain HTTP from another device on your network, sign-i
 
 Leave the tunnel's **HTTP Host Header** setting empty. NitroLog compares it with the browser's origin to block cross-site requests, so overriding it makes every save fail with "Bad origin".
 
-Use a named volume as shown. SQLite's WAL locking can break on network shares and Windows bind mounts. The container runs as a non-root user, so a bind-mounted folder must be writable by UID 1000.
+A named volume or a bind mount to a folder on a local Linux disk both work. SQLite's WAL locking can break on network shares and Windows bind mounts. On startup the container gives the data folder to its unprivileged user (UID 1000), then runs the app as that user.
 
 ## Phone notifications
 

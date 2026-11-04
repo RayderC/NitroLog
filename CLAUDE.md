@@ -74,6 +74,6 @@ Mobile breakpoints: 900px (sidebar becomes a drawer, bottom tab bar appears) and
 
 - `.dockerignore` must exclude `node_modules`, or Windows binaries overwrite the Linux SQLite build.
 - `.gitattributes` forces LF on `*.sh` and `Dockerfile`.
-- The container runs as the `node` user. Named volumes pick up `/config`'s ownership from the image; bind mounts need UID 1000 write access.
+- `docker-entrypoint.sh` starts as root only to chown `/config`, because bind mounts are usually root-owned, then re-runs itself as the `node` user with `setpriv`. Don't add a `USER` line to the Dockerfile, or bind mounts fail with "Permission denied".
 - `docker-entrypoint.sh` generates `SESSION_SECRET` into `/config/.session_secret` when it isn't set.
 - Publish like the owner's other apps: `docker build -t rayderc/nitrolog:latest .` then `docker push rayderc/nitrolog:latest`. The image is `linux/amd64` only.
