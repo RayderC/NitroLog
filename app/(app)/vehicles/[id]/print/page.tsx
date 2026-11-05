@@ -19,7 +19,8 @@ export default function PrintHistoryPage() {
   const total = service.reduce((sum, s) => sum + s.totalCents, 0);
   const details: [string, string | number | null][] = [
     ["Year", v.year], ["Make", v.make], ["Model", v.model], ["Trim", v.trim], ["Engine", v.engine], ["VIN", v.vin], ["Plate", v.plate],
-    ["Current reading", fmtReading(v.reading, v.meterType, me.distanceUnit)],
+    [v.soldOn ? "Final reading" : "Current reading", fmtReading(v.reading, v.meterType, me.distanceUnit)],
+    ["Sold", v.soldOn && fmtDate(v.soldOn)],
   ];
 
   return (

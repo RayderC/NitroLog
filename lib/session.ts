@@ -21,8 +21,8 @@ export const sessionOptions: SessionOptions = {
   cookieName: "nitrolog_session",
   ttl: 60 * 60 * 24 * 30,
   cookieOptions: {
-    // Same default as the owner's other apps, so one image works over plain HTTP and through a tunnel.
-    secure: process.env.SESSION_COOKIE_SECURE === "true",
+    // lib/api.ts decides this per request, so one image works over plain HTTP and through a tunnel.
+    secure: false,
     httpOnly: true,
     sameSite: "lax",
   },

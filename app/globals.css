@@ -1620,3 +1620,28 @@ button.row-card { width: 100%; text-align: left; cursor: pointer; font-family: i
   .settings-row:has(.export-links) { flex-direction: column; align-items: flex-start; }
   .export-links { justify-content: flex-start; }
 }
+
+/* ── Phone status bar ──
+   The app is installed with a see-through status bar (black-translucent, viewport-fit=cover), so the
+   page draws underneath the clock and notch unless the space is reserved here. */
+@media (max-width: 900px) {
+  .dashboard-root::before {
+    content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
+    background: var(--surface); z-index: 110;
+  }
+  .dashboard-main { padding-top: calc(20px + env(safe-area-inset-top)); }
+  .sidebar { height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+  .sidebar-logo-wrap { padding-top: calc(20px + env(safe-area-inset-top)); }
+}
+
+/* Sold vehicles */
+.sold-note {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; font-size: 14px; color: var(--text-muted);
+  background: var(--success-bg); border: 1px solid var(--success-border);
+}
+.sold-note svg { color: var(--success); flex-shrink: 0; margin-top: 2px; }
+.sold-note b { color: var(--text); }
+.sold-group > summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; margin-bottom: 12px; }
+.sold-group > summary::-webkit-details-marker { display: none; }
+.sold-group > summary svg { transition: transform 0.15s; }
+.sold-group[open] > summary svg { transform: rotate(90deg); }

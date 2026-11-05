@@ -13,8 +13,9 @@ import ScheduleTab from "@/app/components/vehicle/ScheduleTab";
 import ServiceTab from "@/app/components/vehicle/ServiceTab";
 import SharingTab from "@/app/components/vehicle/SharingTab";
 import SpecsTab from "@/app/components/vehicle/SpecsTab";
-import { useApi } from "@/lib/client";
+import { fmtDate, useApi } from "@/lib/client";
 import type { ReadingEntry, Vehicle } from "@/lib/types";
+import { fmtMoney } from "@/lib/units";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -45,7 +46,7 @@ function VehicleDetail() {
   const described = [v.year, v.make, v.model, v.trim].filter(Boolean).join(" ");
   const subtitle = [
     described !== v.name && described,
-    v.archived && "Archived",
+    v.archived && !v.soldOn && "Archived",
     v.role === "viewer" && "View only",
   ].filter(Boolean).join(" · ");
 
@@ -57,8 +58,15 @@ function VehicleDetail() {
           <h1 className="dash-title">{v.name}</h1>
           {subtitle && <p className="dash-subtitle">{subtitle}</p>}
         </div>
-        {v.role !== "viewer" && <Link className="btn-primary btn-sm" href={`/service/new?vehicle=${v.id}`}><Icon name="plus" size={14} /> Log service</Link>}
+        {v.role !== "viewer" && !v.archived && <Link className="btn-primary btn-sm" href={`/service/new?vehicle=${v.id}`}><Icon name="plus" size={14} /> Log service</Link>}
       </div>
+
+      {v.soldOn && (
+        <p className="sold-note section">
+          <Icon name="check" size={15} />
+          <span><b>Sold {fmtDate(v.soldOn)}{v.soldCents !== null ? ` for ${fmtMoney(v.soldCents, v.currency)}` : ""}.</b> Its records are all still here, and it no longer shows up in Due or reminders.</span>
+        </p>
+      )}
 
       <div className="tabs" role="tablist">
         {TABS.map(t => (

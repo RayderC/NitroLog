@@ -263,3 +263,9 @@ ALTER TABLE fuel_logs ADD COLUMN import_key TEXT;
 CREATE UNIQUE INDEX service_import ON service_records(import_key) WHERE import_key IS NOT NULL;
 CREATE UNIQUE INDEX fuel_import ON fuel_logs(import_key) WHERE import_key IS NOT NULL;
 `;
+
+/** A sold vehicle is an archived one that also remembers the sale. */
+export const SCHEMA_V5 = `
+ALTER TABLE vehicles ADD COLUMN sold_on TEXT;
+ALTER TABLE vehicles ADD COLUMN sold_cents INTEGER;
+`;

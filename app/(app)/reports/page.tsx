@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
-import { useApi } from "@/lib/client";
+import { fmtDate, useApi } from "@/lib/client";
 import type { VehicleReport } from "@/lib/types";
 import { fmtMoney, fromMeters, meterUnit, type DistanceUnit } from "@/lib/units";
 
@@ -37,7 +37,7 @@ function Report({ r, du }: { r: VehicleReport; du: DistanceUnit }) {
   const unit = meterUnit(r.meterType, du);
   return (
     <section className="section">
-      <div className="section-header"><h2 className="section-title">{r.name}{r.archived && <span className="row-sub"> archived</span>}</h2></div>
+      <div className="section-header"><h2 className="section-title">{r.name}{r.archived && <span className="row-sub"> {r.soldOn ? `sold ${fmtDate(r.soldOn)}${r.soldCents !== null ? ` for ${fmtMoney(r.soldCents, r.currency)}` : ""}` : "archived"}</span>}</h2></div>
       <div className="stats-grid build-stats">
         <div className="stat-card"><div className="stat-card-label">Total cost</div><div className="stat-card-value sm">{fmtMoney(r.totalCents, r.currency)}</div></div>
         <div className="stat-card"><div className="stat-card-label">Cost per {unit}</div><div className="stat-card-value sm">{costPer(r, du)}</div><div className="stat-card-sub">Service and fuel</div></div>

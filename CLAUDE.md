@@ -64,7 +64,7 @@ Cyberpunk dark theme in `app/globals.css`, consistent with AstroFit, Amethyst, C
 
 Body text uses system fonts. `var(--font-mono)` (JetBrains Mono) is only for labels, badges, stat values and form labels. Branding is text-only.
 
-Mobile breakpoints: 900px (sidebar becomes a drawer, bottom tab bar appears) and 640px (inputs get `font-size: 16px` to prevent iOS zoom, modals become bottom sheets).
+Mobile breakpoints: 900px (sidebar becomes a drawer, bottom tab bar appears) and 640px (inputs get `font-size: 16px` to prevent iOS zoom, modals become bottom sheets). There is no top bar on phones: the tab bar's More opens the menu. The app draws under the status bar, so anything at the top needs `env(safe-area-inset-top)`.
 
 ## PWA
 

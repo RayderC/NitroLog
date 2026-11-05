@@ -22,6 +22,10 @@ export type Vehicle = {
   currency: string;
   notes: string | null;
   archived: boolean;
+  /** Set when the vehicle has been sold. Sold vehicles are also archived. */
+  soldOn: string | null;
+  /** Sale price. Only the owner gets this: people the vehicle is shared with see null. */
+  soldCents: number | null;
   /** Highest reading across manual updates, service records and fill-ups. */
   reading: number | null;
   role: Role;
@@ -141,6 +145,8 @@ export type VehicleReport = {
   currency: string;
   meterType: MeterType;
   archived: boolean;
+  soldOn: string | null;
+  soldCents: number | null;
   byCategory: { category: string; cents: number }[];
   byYear: { year: string; cents: number }[];
   serviceCents: number;

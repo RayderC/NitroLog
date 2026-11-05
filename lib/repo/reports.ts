@@ -2,7 +2,7 @@ import { db } from "../db";
 import type { VehicleReport } from "../types";
 import { listVehicles } from "./vehicles";
 
-export function vehicleReport(vehicleId: number): Omit<VehicleReport, "vehicleId" | "name" | "currency" | "meterType" | "archived"> {
+export function vehicleReport(vehicleId: number): Omit<VehicleReport, "vehicleId" | "name" | "currency" | "meterType" | "archived" | "soldOn" | "soldCents"> {
   const byCategory = db.prepare(`SELECT s.category, SUM(s.labor_cost_cents + COALESCE(p.c, 0)) AS cents
     FROM service_records s
     LEFT JOIN (SELECT service_id, SUM(cost_cents) c FROM service_items GROUP BY service_id) p ON p.service_id = s.id
@@ -39,6 +39,6 @@ export function vehicleReport(vehicleId: number): Omit<VehicleReport, "vehicleId
 
 export function reports(userId: number): VehicleReport[] {
   return listVehicles(userId).map(v => ({
-    vehicleId: v.id, name: v.name, currency: v.currency, meterType: v.meterType, archived: v.archived, ...vehicleReport(v.id),
+    vehicleId: v.id, name: v.name, currency: v.currency, meterType: v.meterType, archived: v.archived, soldOn: v.soldOn, soldCents: v.soldCents, ...vehicleReport(v.id),
   }));
 }

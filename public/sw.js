@@ -1,6 +1,6 @@
 // Network first: always try for fresh pages, and fall back to the last copy when offline.
 // API calls are never cached, so vehicle data can't go stale or outlive a sign-out.
-const CACHE = "nitrolog-v2";
+const CACHE = "nitrolog-v3";
 const PRECACHE = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", event => {

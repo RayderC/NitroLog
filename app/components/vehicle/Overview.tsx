@@ -5,6 +5,7 @@ import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
 import ReadingModal from "@/app/components/ReadingModal";
+import SoldModal from "@/app/components/SoldModal";
 import VehicleForm from "@/app/components/VehicleForm";
 import { api, fmtDate } from "@/lib/client";
 import { KINDS } from "@/lib/templates";
@@ -19,6 +20,7 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
   const { me } = useMe();
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [selling, setSelling] = useState(false);
   const [err, setErr] = useState("");
   const canEdit = v.role !== "viewer";
 
@@ -44,7 +46,7 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
           <div className="stat-card-label">Current reading</div>
           <div className="stat-card-value">{fmtReading(v.reading, v.meterType, me.distanceUnit)}</div>
         </div>
-        {canEdit && <button className="btn-secondary btn-sm" onClick={() => setUpdating(true)}>Update</button>}
+        {canEdit && !v.soldOn && <button className="btn-secondary btn-sm" onClick={() => setUpdating(true)}>Update</button>}
       </div>
 
       <div className="card section">
@@ -81,12 +83,22 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
 
       {canEdit && (
         <div className="flex gap-2 section" style={{ flexWrap: "wrap" }}>
-          <button className="btn-secondary btn-sm" onClick={() => act(() => api(`/api/vehicles/${v.id}`, { method: "PATCH", body: { archived: !v.archived } }))}>
-            {v.archived ? "Restore from archive" : "Archive (sold or stored)"}
-          </button>
+          {v.role === "owner" && !v.soldOn && <button className="btn-primary btn-sm" onClick={() => setSelling(true)}>Mark as sold</button>}
+          {v.role === "owner" && v.soldOn && (
+            <button className="btn-secondary btn-sm" onClick={() => {
+              if (confirm(`Put ${v.name} back in your garage? The sale date and price will be cleared.`)) {
+                act(() => api(`/api/vehicles/${v.id}/sold`, { method: "DELETE" }));
+              }
+            }}>Undo sale</button>
+          )}
+          {!v.soldOn && (
+            <button className="btn-secondary btn-sm" onClick={() => act(() => api(`/api/vehicles/${v.id}`, { method: "PATCH", body: { archived: !v.archived } }))}>
+              {v.archived ? "Restore from archive" : "Archive (stored)"}
+            </button>
+          )}
           {v.role === "owner" && (
             <button className="btn-danger btn-sm" onClick={() => {
-              if (confirm(`Delete ${v.name} and its entire history? This can't be undone. Archive it instead if you want to keep the records.`)) {
+              if (confirm(`Delete ${v.name} and its entire history? This can't be undone. Mark it as sold or archive it instead if you want to keep the records.`)) {
                 act(() => api(`/api/vehicles/${v.id}`, { method: "DELETE" }), onDeleted);
               }
             }}>Delete vehicle</button>
@@ -95,6 +107,7 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
       )}
 
       {updating && <ReadingModal vehicle={v} onClose={() => setUpdating(false)} onDone={() => { setUpdating(false); reload(); }} />}
+      {selling && <SoldModal vehicle={v} onClose={() => setSelling(false)} onDone={() => { setSelling(false); reload(); }} />}
       {editing && <VehicleForm vehicle={v} onClose={() => setEditing(false)} onDone={() => { setEditing(false); reload(); }} />}
     </>
   );

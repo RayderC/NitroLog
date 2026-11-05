@@ -6,10 +6,10 @@ import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
 import VehicleForm from "@/app/components/VehicleForm";
-import { useApi } from "@/lib/client";
+import { fmtDate, useApi } from "@/lib/client";
 import { KINDS } from "@/lib/templates";
 import type { Vehicle } from "@/lib/types";
-import { fmtReading } from "@/lib/units";
+import { fmtMoney, fmtReading } from "@/lib/units";
 
 export default function GaragePage() {
   const { me } = useMe();
@@ -18,7 +18,8 @@ export default function GaragePage() {
   const [adding, setAdding] = useState(false);
 
   const active = data?.filter(v => !v.archived) ?? [];
-  const archived = data?.filter(v => v.archived) ?? [];
+  const archived = data?.filter(v => v.archived && !v.soldOn) ?? [];
+  const sold = data?.filter(v => v.soldOn) ?? [];
 
   const card = (v: Vehicle) => (
     <Link key={v.id} href={`/vehicles/${v.id}`} className="row-card">
@@ -32,6 +33,7 @@ export default function GaragePage() {
       <div className="row-stats">
         <span>{KINDS.find(k => k.value === v.kind)?.label}</span>
         <span><b>{fmtReading(v.reading, v.meterType, me.distanceUnit)}</b></span>
+        {v.soldOn && <span>Sold {fmtDate(v.soldOn)}{v.soldCents !== null ? ` for ${fmtMoney(v.soldCents, v.currency)}` : ""}</span>}
         {v.role !== "owner" && <span>Owner {v.ownerName}</span>}
       </div>
     </Link>
@@ -59,6 +61,12 @@ export default function GaragePage() {
               <div className="section-header"><h2 className="section-title">Archived</h2></div>
               <div className="row-list">{archived.map(card)}</div>
             </section>
+          )}
+          {sold.length > 0 && (
+            <details className="section sold-group">
+              <summary className="section-title"><Icon name="chevron" size={15} /> Sold ({sold.length})</summary>
+              <div className="row-list">{sold.map(card)}</div>
+            </details>
           )}
         </>
       )}

@@ -27,7 +27,7 @@ export default function PartsPage() {
     { key: "unitCost", label: "Cost per unit", type: "number" },
     { key: "minQuantity", label: "Warn when at or below", type: "number" },
     { key: "location", label: "Where it's kept", placeholder: "Shelf 2, blue bin" },
-    { key: "vehicleId", label: "For vehicle", type: "select", options: [{ value: "", label: "Any vehicle" }, ...(vehicles ?? []).map(v => ({ value: String(v.id), label: v.name }))] },
+    { key: "vehicleId", label: "For vehicle", type: "select", options: [{ value: "", label: "Any vehicle" }, ...(vehicles ?? []).map(v => ({ value: String(v.id), label: v.soldOn ? `${v.name} (sold)` : v.name }))] },
     { key: "notes", label: "Notes", type: "textarea" },
   ];
 

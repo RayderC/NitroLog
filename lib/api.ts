@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getIronSession } from "iron-session";
 import { sessionOptions, type SessionUser } from "./session";
 import { db } from "./db";
@@ -24,7 +24,13 @@ export const bad = (msg: string) => new HttpError(400, msg);
 export const notFound = (msg = "Not found") => new HttpError(404, msg);
 
 export async function getSession() {
-  return getIronSession<{ user?: SessionUser }>(await cookies(), sessionOptions);
+  // Secure on HTTPS (including through a tunnel), but still able to sign in over plain HTTP on a LAN.
+  const env = process.env.SESSION_COOKIE_SECURE;
+  const secure = env != null ? env === "true" : (await headers()).get("x-forwarded-proto") === "https";
+  return getIronSession<{ user?: SessionUser }>(await cookies(), {
+    ...sessionOptions,
+    cookieOptions: { ...sessionOptions.cookieOptions, secure },
+  });
 }
 
 export function sameOrigin(req: NextRequest) {

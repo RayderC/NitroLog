@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { bad, day, HttpError, int, notFound, numOrNull, requiredText, text } from "../api";
+import { bad, cents, day, HttpError, int, notFound, numOrNull, requiredText, text } from "../api";
 import { deleteFile } from "../files";
 import { KINDS, templateFor, type VehicleKind } from "../templates";
 import type { Member, ReadingEntry, Role, Vehicle } from "../types";
@@ -9,7 +9,7 @@ type Row = {
   id: number; owner_id: number; owner_name: string; name: string; kind: VehicleKind; year: number | null;
   make: string | null; model: string | null; trim: string | null; engine: string | null; vin: string | null;
   plate: string | null; meter_type: MeterType; currency: string; notes: string | null; archived: number;
-  role: Role; members: number;
+  sold_on: string | null; sold_cents: number | null; role: Role; members: number;
 };
 
 const SELECT = `SELECT v.*, u.username AS owner_name,
@@ -33,6 +33,7 @@ function toVehicle(r: Row): Vehicle {
   return {
     id: r.id, name: r.name, kind: r.kind, year: r.year, make: r.make, model: r.model, trim: r.trim, engine: r.engine,
     vin: r.vin, plate: r.plate, meterType: r.meter_type, currency: r.currency, notes: r.notes, archived: !!r.archived,
+    soldOn: r.sold_on, soldCents: r.role === "owner" ? r.sold_cents : null,
     reading: currentReading(r.id), role: r.role, ownerName: r.owner_name, shared: r.members > 0,
   };
 }
@@ -122,8 +123,34 @@ export function updateVehicle(userId: number, id: number, b: any) {
     ...d, id,
     kind: kind(b.kind ?? current.kind),
     currency: currency(b.currency ?? current.currency),
-    archived: (b.archived ?? current.archived) ? 1 : 0,
+    // A sold vehicle comes back through undoSale, which also clears the sale details.
+    archived: current.soldOn || (b.archived ?? current.archived) ? 1 : 0,
   });
+}
+
+/**
+ * Takes the vehicle out of the garage, the due list and reminders, and keeps every record. The final
+ * reading is optional, and logged as a normal reading so the history ends where the sale did.
+ */
+export function markSold(userId: number, id: number, b: any) {
+  const v = requireVehicle(userId, id, "owner");
+  const soldOn = day(b.date, "sale date");
+  const price = b.price === null || b.price === undefined || b.price === "" ? null : cents(b.price);
+  const reading = numOrNull(b.reading, "reading");
+  if (reading !== null && v.reading !== null && reading < v.reading) {
+    throw bad("That's lower than the current reading. Leave it blank if the current one is right.");
+  }
+  db.transaction(() => {
+    db.prepare("UPDATE vehicles SET archived = 1, sold_on = ?, sold_cents = ? WHERE id = ?").run(soldOn, price, id);
+    if (reading !== null && reading !== v.reading) {
+      db.prepare("INSERT INTO odometer_readings (vehicle_id, reading, date, created_by) VALUES (?, ?, ?, ?)").run(id, reading, soldOn, userId);
+    }
+  })();
+}
+
+export function undoSale(userId: number, id: number) {
+  requireVehicle(userId, id, "owner");
+  db.prepare("UPDATE vehicles SET archived = 0, sold_on = NULL, sold_cents = NULL WHERE id = ?").run(id);
 }
 
 export function deleteVehicle(userId: number, id: number) {

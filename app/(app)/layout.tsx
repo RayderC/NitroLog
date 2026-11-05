@@ -47,12 +47,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <MeContext.Provider value={{ me, reloadMe: reload }}>
       <div className="dashboard-root">
-        <header className="dash-mobile-bar">
-          <button className="dash-hamburger" onClick={() => setOpen(true)} aria-label="Menu">
-            <span /><span /><span />
-          </button>
-          <span className="dash-mobile-title">NitroLog</span>
-        </header>
 
         {open && <div className="dash-backdrop" onClick={() => setOpen(false)} />}
 
