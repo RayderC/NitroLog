@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   description: "Self-hosted vehicle maintenance tracker.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "NitroLog" },
+  appleWebApp: { capable: true, statusBarStyle: "black", title: "NitroLog" },
   other: { "mobile-web-app-capable": "yes" },
 };
 
