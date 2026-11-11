@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import EbaySetup from "@/app/components/EbaySetup";
 import Icon from "@/app/components/Icon";
 import Modal from "@/app/components/Modal";
 import { useMe } from "@/app/components/MeContext";
@@ -63,6 +64,10 @@ export default function AdminPage() {
           })}
         </div>
       )}
+      <div className="section">
+        <div className="section-header"><h2 className="section-title">Optional services</h2></div>
+        <EbaySetup />
+      </div>
       {creating && <CreateUser onClose={() => setCreating(false)} onDone={() => { setCreating(false); reload(); }} />}
       {resetting && <ResetPassword user={resetting} self={resetting.id === me.id} onClose={() => setResetting(null)} />}
     </div>

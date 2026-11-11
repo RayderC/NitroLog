@@ -6,13 +6,30 @@ import { useEffect, useState } from "react";
 import AttachmentList from "@/app/components/AttachmentList";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
+import PartNameInput from "@/app/components/PartNameInput";
+import PriceCheck from "@/app/components/PriceCheck";
 import { api, fmtDate, localDay, parseNum, useApi } from "@/lib/client";
-import { SERVICE_CATEGORIES, type InventoryItem, type ScheduleItem, type ServiceDetail, type Vehicle } from "@/lib/types";
+import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type PartsHistory, type ScheduleItem, type ServiceDetail, type ServiceItem, type Vehicle } from "@/lib/types";
 import { fmtMoney, meterUnit, readingFromInput, readingToInput, toCents } from "@/lib/units";
 
-type PartRow = { kind: "part" | "fluid"; name: string; partNumber: string; brand: string; quantity: string; unit: string; cost: string; inventoryId: number | null };
+/** `unitCents` is the price of one, kept so the line total follows the quantity until someone types their own total. */
+type PartRow = { kind: "part" | "fluid"; name: string; partNumber: string; brand: string; quantity: string; unit: string; cost: string; inventoryId: number | null; unitCents: number | null };
 
-const blankPart = (kind: PartRow["kind"]): PartRow => ({ kind, name: "", partNumber: "", brand: "", quantity: "", unit: kind === "fluid" ? "qt" : "", cost: "", inventoryId: null });
+const blankPart = (kind: PartRow["kind"]): PartRow => ({ kind, name: "", partNumber: "", brand: "", quantity: "1", unit: kind === "fluid" ? "qt" : "", cost: "", inventoryId: null, unitCents: null });
+
+const UNITS = ["ea", "qt", "L", "gal", "oz", "ml", "pair", "set", "ft"];
+
+const partKey = (p: { kind: string; name: string; partNumber: string | null; brand: string | null }) =>
+  [p.kind, p.name.trim().toLowerCase(), (p.partNumber ?? "").trim().toLowerCase(), (p.brand ?? "").trim().toLowerCase()].join("|");
+
+/** A line from a past record, priced the same way it was then. */
+function rowFromItem(i: ServiceItem): PartRow {
+  const unitCents = i.costCents ? Math.round(i.costCents / (i.quantity && i.quantity > 0 ? i.quantity : 1)) : null;
+  return {
+    kind: i.kind, name: i.name, partNumber: i.partNumber ?? "", brand: i.brand ?? "", quantity: i.quantity?.toString() ?? "1",
+    unit: i.unit ?? "", cost: i.costCents ? (i.costCents / 100).toFixed(2) : "", inventoryId: null, unitCents,
+  };
+}
 
 /** New record when `serviceId` is missing. `initialVehicle` and `initialSchedule` come from "Log it" links. */
 export default function ServiceForm({ serviceId, initialVehicle, initialSchedule }: { serviceId?: number; initialVehicle?: number; initialSchedule?: number }) {
@@ -38,6 +55,8 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
 
   const vehicle = vehicles?.find(v => v.id === vehicleId);
   const { data: schedule } = useApi<ScheduleItem[]>(vehicleId ? `/api/vehicles/${vehicleId}/schedule?today=${localDay()}` : null);
+  const { data: history } = useApi<PartsHistory>(vehicleId ? `/api/vehicles/${vehicleId}/parts-history` : null);
+  const [usedLastTime, setUsedLastTime] = useState<number[]>([]);
 
   // Copy an existing record into the form once, after both it and its vehicle have loaded.
   useEffect(() => {
@@ -52,10 +71,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     setLaborHours(existing.laborHours?.toString() ?? "");
     setLaborCost(existing.laborCostCents ? (existing.laborCostCents / 100).toFixed(2) : "");
     setNotes(existing.notes ?? "");
-    setParts(existing.items.map(i => ({
-      kind: i.kind, name: i.name, partNumber: i.partNumber ?? "", brand: i.brand ?? "",
-      quantity: i.quantity?.toString() ?? "", unit: i.unit ?? "", cost: i.costCents ? (i.costCents / 100).toFixed(2) : "", inventoryId: i.inventoryId,
-    })));
+    setParts(existing.items.map(i => ({ ...rowFromItem(i), quantity: i.quantity?.toString() ?? "", inventoryId: i.inventoryId })));
     setTasks(existing.scheduleIds);
     setLoaded(true);
   }, [existing, vehicles, loaded, me.distanceUnit]);
@@ -73,24 +89,52 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
   const money = (s: string) => (s.trim() === "" ? 0 : toCents(parseNum(s) ?? 0));
   const total = money(laborCost) + parts.reduce((sum, p) => sum + money(p.cost), 0);
 
-  const setPart = (i: number, k: keyof PartRow) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setParts(parts.map((p, n) => {
-      if (n !== i) return p;
-      const next = { ...p, [k]: e.target.value };
-      // A stock part's line cost follows its quantity until someone types their own cost.
-      const stock = inventory?.find(s => s.id === p.inventoryId);
-      const qty = parseNum(next.quantity);
-      if (k === "quantity" && stock?.unitCostCents && qty !== null) next.cost = ((stock.unitCostCents * qty) / 100).toFixed(2);
-      return next;
-    }));
+  const updatePart = (i: number, change: Partial<PartRow>) => setParts(ps => ps.map((p, n) => {
+    if (n !== i) return p;
+    const next = { ...p, ...change };
+    // Typing a total yourself stops it following the quantity.
+    if ("cost" in change) next.unitCents = null;
+    const qty = parseNum(next.quantity);
+    if (next.unitCents !== null && ("quantity" in change || "unitCents" in change)) {
+      next.cost = ((next.unitCents * (qty !== null && qty > 0 ? qty : 1)) / 100).toFixed(2);
+    }
+    return next;
+  }));
+  const setPart = (i: number, k: keyof PartRow) => (e: React.ChangeEvent<HTMLInputElement>) => updatePart(i, { [k]: e.target.value });
+
+  /** Fill a line from a suggestion, keeping a quantity that's already been typed. */
+  function pickPart(i: number, s: PartSuggestion) {
+    const cur = parts[i];
+    const quantity = cur.quantity.trim() && cur.quantity.trim() !== "1" ? cur.quantity : String(s.quantity ?? 1);
+    updatePart(i, {
+      name: s.name, partNumber: s.partNumber ?? "", brand: s.brand ?? "", unit: s.unit ?? cur.unit, quantity,
+      inventoryId: s.inventoryId, unitCents: s.unitCostCents,
+    });
+  }
 
   function addFromStock(id: number) {
     const s = inventory?.find(x => x.id === id);
     if (!s) return;
     setParts([...parts, {
       kind: "part", name: s.name, partNumber: s.partNumber ?? "", brand: s.brand ?? "", quantity: "1", unit: s.unit ?? "",
-      cost: s.unitCostCents ? (s.unitCostCents / 100).toFixed(2) : "", inventoryId: s.id,
+      cost: s.unitCostCents ? (s.unitCostCents / 100).toFixed(2) : "", inventoryId: s.id, unitCents: s.unitCostCents || null,
     }]);
+  }
+
+  // Ticking a schedule item offers the parts from the last time it was done on this vehicle.
+  const lastTimeOffers = tasks.flatMap(id => {
+    const last = history?.lastByTask[id];
+    if (!last || last.serviceId === serviceId || usedLastTime.includes(id)) return [];
+    const have = new Set(parts.map(partKey));
+    const items = last.items.filter(i => !have.has(partKey(i)));
+    if (!items.length) return [];
+    return [{ id, name: schedule?.find(s => s.id === id)?.name ?? "this", date: last.date, items }];
+  });
+
+  function applyLastTime(offer: { id: number; items: ServiceItem[] }) {
+    // Blank lines go, so the copied ones don't sit under empty ones.
+    setParts([...parts.filter(p => p.name.trim() !== ""), ...offer.items.map(rowFromItem)]);
+    setUsedLastTime([...usedLastTime, offer.id]);
   }
 
   function checkedNumber(s: string, label: string): number | null {
@@ -206,6 +250,19 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
 
           <section className="section">
             <div className="section-header"><h2 className="section-title">Parts &amp; fluids</h2></div>
+            {!readOnly && lastTimeOffers.map(o => (
+              <div key={o.id} className="last-time">
+                <div>
+                  <b>Same as last time?</b>
+                  <p className="form-hint">{o.name} on {fmtDate(o.date)}: {o.items.map(i => i.name).join(", ")}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => setUsedLastTime([...usedLastTime, o.id])}>No</button>
+                  <button type="button" className="btn-primary btn-sm" onClick={() => applyLastTime(o)}>Add {o.items.length === 1 ? "it" : `all ${o.items.length}`}</button>
+                </div>
+              </div>
+            ))}
+            <datalist id="part-units">{UNITS.map(u => <option key={u} value={u} />)}</datalist>
             <div className="row-list">
               {parts.map((p, i) => (
                 <div key={i} className="row-card part-row">
@@ -217,16 +274,21 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
                     {!readOnly && <button type="button" className="icon-btn" aria-label={`Remove ${p.name || p.kind}`} onClick={() => setParts(parts.filter((_, n) => n !== i))}><Icon name="x" size={15} /></button>}
                   </div>
                   <div className="form-stack">
-                    <input className="form-input" required placeholder="Name" aria-label="Name" value={p.name} onChange={setPart(i, "name")} />
+                    <PartNameInput value={p.name} kind={p.kind} parts={readOnly ? [] : history?.parts ?? []} currency={currency}
+                      onChange={v => updatePart(i, { name: v })} onPick={s => pickPart(i, s)} />
                     <div className="form-grid-2">
                       <input className="form-input" placeholder="Part number" aria-label="Part number" value={p.partNumber} onChange={setPart(i, "partNumber")} />
                       <input className="form-input" placeholder="Brand" aria-label="Brand" value={p.brand} onChange={setPart(i, "brand")} />
                     </div>
-                    <div className="form-grid-3">
-                      <input className="form-input" inputMode="decimal" placeholder="Qty" aria-label="Quantity" value={p.quantity} onChange={setPart(i, "quantity")} />
-                      <input className="form-input" placeholder="Unit" aria-label="Unit" value={p.unit} onChange={setPart(i, "unit")} />
-                      <input className="form-input" inputMode="decimal" placeholder={`Total ${currency}`} aria-label={`Total cost in ${currency}`} value={p.cost} onChange={setPart(i, "cost")} />
+                    <div className="part-nums">
+                      <label className="part-num"><span>Qty</span><input className="form-input" inputMode="decimal" aria-label="Quantity" value={p.quantity} onChange={setPart(i, "quantity")} /></label>
+                      <label className="part-num"><span>Unit</span><input className="form-input" list="part-units" aria-label="Unit" value={p.unit} onChange={setPart(i, "unit")} /></label>
+                      <label className="part-num"><span>Total {currency}</span><input className="form-input" inputMode="decimal" aria-label={`Total cost in ${currency}`} value={p.cost} onChange={setPart(i, "cost")} /></label>
                     </div>
+                    {p.unitCents !== null && parseNum(p.quantity) !== null && parseNum(p.quantity) !== 1 && (
+                      <p className="form-hint">{fmtMoney(p.unitCents, currency)} each</p>
+                    )}
+                    {!readOnly && vehicle && <PriceCheck part={p} vehicle={vehicle} onUse={c => updatePart(i, { unitCents: c })} />}
                   </div>
                 </div>
               ))}

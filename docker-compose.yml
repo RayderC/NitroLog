@@ -6,6 +6,10 @@ services:
       - "7100:7100"
     volumes:
       - nitrolog_data:/config
+    # environment:
+    #   # Optional: free eBay keys for part prices on the service form (see README).
+    #   EBAY_CLIENT_ID: ""
+    #   EBAY_CLIENT_SECRET: ""
     restart: unless-stopped
 
 volumes:

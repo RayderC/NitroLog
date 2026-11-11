@@ -12,6 +12,8 @@ Self-hosted maintenance tracker for cars, motorcycles, powersports, and project 
 
 - **What's due**: overdue and upcoming service across every vehicle, by distance, engine hours or time, whichever comes first.
 - **Service records**: date, reading, parts and fluids with part numbers and costs, labor hours and cost, and notes.
+- **Quick part entry**: typing a part suggests ones you've used before and ones on your shelf, with what you paid. Ticking a schedule item offers last time's parts in one tap.
+- **Part prices** (optional): current eBay prices for a part, matched to your vehicle where eBay knows the fit, plus quick searches on RockAuto, AutoZone, Amazon and Google Shopping.
 - **Schedules**: editable starter schedules for cars, motorcycles, powersports and track cars. Logging a service resets the items it covers.
 - **Specs**: oil types, torque values, filter numbers and how-to notes for each vehicle.
 - **Odometer or hours**: any service or fill-up updates the reading, and there's a one-tap update as well.
@@ -60,6 +62,17 @@ Notifications need HTTPS, which a Cloudflare Tunnel provides. Turn them on under
 
 You get one notification when something becomes due soon, one when it becomes overdue, and a reminder every 14 days while it stays overdue. NitroLog checks every hour.
 
+## Part prices from eBay
+
+The service form's **Check prices** shows current eBay listings for a part when NitroLog has an eBay keyset. Keys are free. An admin sets them up under **Admin → Optional services**, which has a step-by-step guide and a Test button. In short:
+
+1. Sign up at [developer.ebay.com](https://developer.ebay.com/) and create an application keyset in the **Production** column.
+2. Paste the App ID (Client ID) and Cert ID (Client Secret) into the Admin page and tap Save, then Test.
+
+You can set them as `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` on the container instead, and then the Admin page shows them as set there. Amazon has no price API a personal app can use, so it's offered as a search link.
+
+Without keys, the store search links still work. Each lookup is cached for 30 minutes, and each person can do 30 a minute, which keeps well inside eBay's free daily allowance.
+
 ## Environment variables
 
 | Variable | Default | Description |
@@ -70,6 +83,8 @@ You get one notification when something becomes due soon, one when it becomes ov
 | `PORT` | `7100` | Listening port |
 | `UPLOAD_DIR` | `/config/uploads` | Where photos and documents are stored |
 | `PUSH_CONTACT` | project URL | `mailto:` or `https:` contact sent to push services |
+| `EBAY_CLIENT_ID` | unset | Optional. eBay Production App ID, for part prices. Usually set on the Admin page instead |
+| `EBAY_CLIENT_SECRET` | unset | Optional. eBay Production Cert ID. Usually set on the Admin page instead |
 
 ## Backups
 

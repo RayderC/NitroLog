@@ -82,6 +82,32 @@ export type ServiceSummary = {
 
 export type ServiceDetail = ServiceSummary & { items: ServiceItem[]; scheduleIds: number[] };
 
+/** A part the service form can fill in: one you've used before, or one on your shelf. */
+export type PartSuggestion = {
+  source: "history" | "stock";
+  kind: ServiceItem["kind"];
+  name: string;
+  partNumber: string | null;
+  brand: string | null;
+  unit: string | null;
+  /** How many were used last time. */
+  quantity: number | null;
+  /** The latest price for one unit, in cents. Null when no price was ever recorded. */
+  unitCostCents: number | null;
+  lastDate: string | null;
+  uses: number;
+  onThisVehicle: boolean;
+  vehicleName: string | null;
+  inventoryId: number | null;
+  onHand: number | null;
+};
+
+export type PartsHistory = {
+  parts: PartSuggestion[];
+  /** Per schedule item id: the parts on the last record on this vehicle that covered it. */
+  lastByTask: Record<number, { serviceId: number; date: string; items: ServiceItem[] }>;
+};
+
 export const SERVICE_CATEGORIES = ["maintenance", "repair", "inspection", "upgrade", "other"] as const;
 
 export type Spec = { id: number; label: string; value: string; notes: string | null };
