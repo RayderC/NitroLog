@@ -90,10 +90,34 @@ function fromAmazon(u: URL): Parsed {
   const dp = segs.findIndex(s => s === "dp" || s === "gp");
   if (dp < 0) throw bad("That Amazon link isn't a product page. Open the item, then copy its link.");
   const words = dp > 0 ? decodeURIComponent(segs[dp - 1]).toLowerCase().split("-").filter(Boolean) : [];
-  const { brand, rest } = takeBrand(words);
-  const { partNumber, rest: name } = takePartNumber(rest);
+  // Amazon's link words are a cut-down title and often end in filler, like
+  // "Select-Oil-Filter-Description-Compatible" from "…Compatible with Select … (See Description)".
+  const kept = words.filter(w => !AMAZON_FILLER.has(w));
+  // A brand can sit anywhere, not only first.
+  let brand: string | null = null, rest = kept;
+  for (let i = 0; i < kept.length && !brand; i++) {
+    const t = takeBrand(kept.slice(i));
+    if (t.brand) { brand = t.brand; rest = [...kept.slice(0, i), ...t.rest]; }
+  }
+  // A part number is a word with both letters and digits, like "hp-1017" or "ph7317", anywhere in the words.
+  let partNumber: string | null = null;
+  const end = takePartNumber(rest);
+  if (end.partNumber && /[a-z]/i.test(end.partNumber) && /\d/.test(end.partNumber)) { partNumber = end.partNumber; rest = end.rest; }
+  else {
+    const i = rest.findIndex(w => /[a-z]/.test(w) && /\d/.test(w) && w.length >= 4);
+    if (i >= 0) { partNumber = rest[i].toUpperCase(); rest = rest.filter((_, j) => j !== i); }
+  }
+  // Without real words left, the name has to be typed.
+  const name = rest.filter(w => !/^\d+$/.test(w) || rest.length <= 3);
   return { name: title(name).slice(0, 160) || "Amazon item", brand, partNumber, priceCents: null, named: name.length > 0 };
 }
+
+/** Words Amazon's link titles are padded with that never name the part. */
+const AMAZON_FILLER = new Set([
+  "select", "description", "compatible", "compatibility", "with", "for", "see", "models", "model", "vehicles", "vehicle",
+  "fits", "fit", "replacement", "replaces", "replace", "oem", "pack", "count", "pcs", "pc", "the", "and", "of", "in", "to",
+  "a", "an",
+]);
 
 function storeOf(u: URL) {
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
@@ -109,7 +133,9 @@ async function expandShortLink(start: URL): Promise<URL> {
   for (let hop = 0; hop < 4 && SHORT.test(url.hostname.toLowerCase()); hop++) {
     let res: Response;
     try {
-      res = await fetch(url, { method: "HEAD", redirect: "manual", headers: { "User-Agent": "NitroLog link reader" }, signal: AbortSignal.timeout(8000) });
+      // A GET, because a.co answers HEAD with 404. Only the redirect header is used; the body is dropped unread.
+      res = await fetch(url, { redirect: "manual", headers: { "User-Agent": "NitroLog link reader" }, signal: AbortSignal.timeout(8000) });
+      res.body?.cancel().catch(() => {});
     } catch {
       throw new HttpError(502, "Couldn't open that short link. Open it on your phone and copy the full product link instead.");
     }

@@ -23,8 +23,12 @@ export default function LinkPaste({ onPart }: { onPart: (p: LinkedPart) => void 
       onPart(p);
       setUrl("");
       setMsg({ ok: true, text: !p.named
-        ? `That ${p.store} link doesn't name the product, so type the name and what you paid. Links copied from the product page usually work better.`
-        : `Filled in from the ${p.store} link. Type what you paid, since stores don't let apps read their prices, and fix anything that's off.` });
+        ? (p.store === "Amazon"
+          ? "Amazon's share links don't include the product's name, so type the name and what you paid. A link copied from the address bar on amazon.com includes the name, brand and part number."
+          : `That ${p.store} link doesn't name the product, so type the name and what you paid.`)
+        : p.store === "Amazon"
+          ? "Filled in what Amazon's link says. Amazon shortens titles in its links, so check the name, brand and part number, and type what you paid."
+          : `Filled in from the ${p.store} link. Type what you paid, since stores don't let apps read their prices, and fix anything that's off.` });
     } catch (x) { setMsg({ ok: false, text: (x as Error).message }); }
     finally { setBusy(false); }
   }
