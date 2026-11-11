@@ -1738,3 +1738,10 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .key-input { font-family: var(--font-mono); font-size: 12px; }
 .key-actions { flex-wrap: wrap; }
 .key-ok { color: var(--success); font-size: 13px; }
+
+/* ── Service form: add a part from a store link ── */
+.link-paste { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.link-paste .form-label { margin: 0; }
+.link-paste-row { display: flex; gap: 8px; }
+.link-paste-row .form-input { flex: 1; min-width: 0; }
+.link-paste-row .btn-secondary { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; }

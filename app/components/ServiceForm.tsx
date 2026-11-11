@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import AttachmentList from "@/app/components/AttachmentList";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
+import LinkPaste, { type LinkedPart } from "@/app/components/LinkPaste";
 import PartNameInput from "@/app/components/PartNameInput";
 import PriceCheck from "@/app/components/PriceCheck";
 import { api, fmtDate, localDay, parseNum, useApi } from "@/lib/client";
@@ -130,6 +131,16 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     if (!items.length) return [];
     return [{ id, name: schedule?.find(s => s.id === id)?.name ?? "this", date: last.date, items }];
   });
+
+  /** A part read from a store link goes into an empty line if there is one, or a new one. */
+  function addFromLink(l: LinkedPart) {
+    const row: PartRow = {
+      ...blankPart("part"), name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "",
+      unitCents: l.priceCents, cost: l.priceCents !== null ? (l.priceCents / 100).toFixed(2) : "",
+    };
+    const empty = parts.findIndex(x => !x.name.trim() && !x.partNumber.trim());
+    setParts(empty >= 0 ? parts.map((x, i) => (i === empty ? { ...row, kind: x.kind, unit: x.unit } : x)) : [...parts, row]);
+  }
 
   function applyLastTime(offer: { id: number; items: ServiceItem[] }) {
     // Blank lines go, so the copied ones don't sit under empty ones.
@@ -299,6 +310,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
                 <button type="button" className="add-set-btn" onClick={() => setParts([...parts, blankPart("fluid")])}><Icon name="plus" size={14} /> Fluid</button>
               </div>
             )}
+            {!readOnly && <LinkPaste onPart={addFromLink} />}
             {!readOnly && !!inventory?.length && (
               <select className="form-select stock-picker" aria-label="Add a part from your inventory" value="" onChange={e => addFromStock(Number(e.target.value))}>
                 <option value="">Use a part from your inventory…</option>
