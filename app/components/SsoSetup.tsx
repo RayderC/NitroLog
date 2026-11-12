@@ -20,8 +20,11 @@ export default function SsoSetup({ appName }: { appName: string }) {
   }
 
   return (
-    <div className="card section" id="sso-setup">
-      <div className="card-title" style={{ marginBottom: 6 }}>Sign in with Amethyst</div>
+    <div className="card section key-setup" id="sso-setup">
+      <div className="key-head">
+        <h2 className="section-title">Sign in with Amethyst</h2>
+        <span className={`badge ${data.enabled ? "badge-green" : "badge-dim"}`}>{data.enabled ? "On" : "Off"}</span>
+      </div>
       <p className="settings-hint">
         Adds a <b>Sign in with Amethyst</b> button to {appName}&apos;s login page. It signs in the {appName} account with the same username as
         the Amethyst account, so make the accounts here first. Passwords keep working too.
