@@ -11,6 +11,7 @@ const SUGGESTED = ["Oil type", "Oil capacity", "Oil filter", "Drain plug torque"
 export default function SpecsTab({ vehicle: v }: { vehicle: Vehicle }) {
   const { data, error, reload } = useApi<Spec[]>(`/api/vehicles/${v.id}/specs`);
   const [editing, setEditing] = useState<Spec | "new" | null>(null);
+  const [fluids, setFluids] = useState(false);
   const canEdit = v.role !== "viewer";
 
   if (error) return <p className="form-error">{error}</p>;
@@ -18,7 +19,12 @@ export default function SpecsTab({ vehicle: v }: { vehicle: Vehicle }) {
 
   return (
     <div className="section">
-      {canEdit && <div className="tab-actions"><button className="btn-primary btn-sm" onClick={() => setEditing("new")}><Icon name="plus" size={14} /> Add spec</button></div>}
+      {canEdit && (
+        <div className="tab-actions">
+          <button className="btn-secondary btn-sm" onClick={() => setFluids(true)}>Fluid capacities</button>
+          <button className="btn-primary btn-sm" onClick={() => setEditing("new")}><Icon name="plus" size={14} /> Add spec</button>
+        </div>
+      )}
       {data.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Icon name="note" size={36} /></div>
@@ -41,8 +47,50 @@ export default function SpecsTab({ vehicle: v }: { vehicle: Vehicle }) {
           })}
         </div>
       )}
+      {fluids && <CapacityForm vehicleId={v.id} specs={data} onClose={() => setFluids(false)} onDone={() => { setFluids(false); reload(); }} />}
       {editing && <SpecForm vehicleId={v.id} spec={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); reload(); }} />}
     </div>
+  );
+}
+
+const FLUIDS = ["Oil", "Coolant", "Transmission fluid", "Front differential", "Rear differential", "Transfer case", "Brake fluid", "Power steering fluid"];
+const capLabel = (f: string) => `${f} capacity`;
+
+/** Every fluid capacity on one sheet. They show on the service form while you log. */
+function CapacityForm({ vehicleId, specs, onClose, onDone }: { vehicleId: number; specs: Spec[]; onClose: () => void; onDone: () => void }) {
+  const find = (f: string) => specs.find(s => s.label.toLowerCase() === capLabel(f).toLowerCase());
+  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(FLUIDS.map(f => [f, find(f)?.value ?? ""])));
+  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setErr(""); setSaving(true);
+    try {
+      for (const f of FLUIDS) {
+        const value = vals[f].trim(), had = find(f);
+        if (had && !value) await api(`/api/specs/${had.id}`, { method: "DELETE" });
+        else if (had && value !== had.value) await api(`/api/specs/${had.id}`, { method: "PATCH", body: { label: had.label, value, notes: had.notes } });
+        else if (!had && value) await api(`/api/vehicles/${vehicleId}/specs`, { body: { label: capLabel(f), value } });
+      }
+      onDone();
+    } catch (x) { setErr((x as Error).message); } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title="Fluid capacities" onClose={onClose} footer={<button className="btn-primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>}>
+      <div className="form-stack">
+        {err && <p className="form-error">{err}</p>}
+        <p className="form-hint">Fill in the ones you know, with the unit, like <b>5.7 qt</b> or <b>6.5 L with filter</b>. Leave the rest empty. They show on the service form while you log.</p>
+        <div className="form-grid-2">
+          {FLUIDS.map(f => (
+            <div key={f} className="form-group">
+              <label className="form-label" htmlFor={`cap-${f}`}>{f}</label>
+              <input id={`cap-${f}`} className="form-input" value={vals[f]} onChange={e => setVals({ ...vals, [f]: e.target.value })} maxLength={200} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

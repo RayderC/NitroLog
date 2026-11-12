@@ -7,6 +7,7 @@ import { useMe } from "@/app/components/MeContext";
 import AlertsCard from "@/app/components/AlertsCard";
 import PushCard from "@/app/components/PushCard";
 import SendButtonSetup from "@/app/components/SendButtonSetup";
+import SignInsCard from "@/app/components/SignInsCard";
 import { api, localDay } from "@/lib/client";
 
 export default function SettingsPage() {
@@ -73,6 +74,7 @@ export default function SettingsPage() {
           <div className="flex gap-2 items-center"><button className="btn-primary" disabled={!pw.current || pw.next.length < 8}>Change</button>{msg && <span className="text-muted" style={{ fontSize: 13 }}>{msg}</span>}</div>
         </div>
       </form>
+      <SignInsCard />
     </div>
   );
 }

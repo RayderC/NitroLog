@@ -6,7 +6,16 @@ import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
 import Modal from "@/app/components/Modal";
 import { api, fmtDate, localDay, parseNum, useApi } from "@/lib/client";
+import { addMonths } from "@/lib/due";
 import { dueText, intervalText, STATUS_BADGE } from "@/lib/dueText";
+
+/** Renewals people forget. Lengths are common defaults; the form lets you change them. */
+const PAPERWORK = [
+  { name: "Registration", months: 12, notes: "" },
+  { name: "Insurance", months: 6, notes: "" },
+  { name: "State inspection", months: 12, notes: "" },
+  { name: "Emissions test", months: 24, notes: "" },
+] as const;
 import type { ScheduleItem, Vehicle } from "@/lib/types";
 import { fmtReading, meterUnit, readingFromInput, readingToInput } from "@/lib/units";
 
@@ -75,7 +84,13 @@ function ScheduleForm({ vehicle: v, item, onClose, onDone }: { vehicle: Vehicle;
     notes: item?.notes ?? "",
   });
   const [err, setErr] = useState("");
+  // Paperwork is easier to set from when it's next due than from when it was last done.
+  const [dueOn, setDueOn] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const pickPreset = (p: typeof PAPERWORK[number]) => {
+    setF({ ...f, name: p.name, intervalMonths: String(p.months), intervalReading: "", baseReading: "", notes: f.notes || p.notes });
+    setDueOn(addMonths(localDay(), p.months));
+  };
 
   function toStored(s: string, label: string): number | null {
     if (s.trim() === "") return null;
@@ -87,8 +102,11 @@ function ScheduleForm({ vehicle: v, item, onClose, onDone }: { vehicle: Vehicle;
   async function save() {
     setErr("");
     try {
+      const months = Number(f.intervalMonths);
+      if (dueOn !== null && (!dueOn || !Number.isInteger(months) || months <= 0)) throw new Error("Pick when it's next due and how many months it lasts");
       const body = {
-        name: f.name, notes: f.notes, intervalMonths: f.intervalMonths, baseDate: f.baseDate,
+        name: f.name, notes: f.notes, intervalMonths: f.intervalMonths,
+        baseDate: dueOn !== null ? addMonths(dueOn, -months) : f.baseDate,
         intervalReading: toStored(f.intervalReading, "Interval"),
         baseReading: toStored(f.baseReading, "Last done reading"),
       };
@@ -115,7 +133,24 @@ function ScheduleForm({ vehicle: v, item, onClose, onDone }: { vehicle: Vehicle;
     <Modal title={item ? `Edit ${item.name}` : "Add schedule item"} onClose={onClose} footer={footer}>
       <div className="form-stack">
         {err && <p className="form-error">{err}</p>}
+        {!item && (
+          <div className="paperwork-presets">
+            <span className="form-hint">Paperwork:</span>
+            {PAPERWORK.map(p => (
+              <button key={p.name} type="button" className={`chip ${f.name === p.name ? "on" : ""}`} onClick={() => pickPreset(p)}>{p.name}</button>
+            ))}
+          </div>
+        )}
         <div className="form-group"><label className="form-label" htmlFor="s-name">Name</label><input id="s-name" className="form-input" value={f.name} onChange={set("name")} autoFocus={!item} /></div>
+        {dueOn !== null ? (
+          <>
+            <div className="form-grid-2">
+              <div className="form-group"><label className="form-label" htmlFor="s-due">Next due on</label><input id="s-due" type="date" className="form-input" value={dueOn} onChange={e => setDueOn(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label" htmlFor="s-im">Lasts (months)</label><input id="s-im" className="form-input" inputMode="numeric" value={f.intervalMonths} onChange={set("intervalMonths")} /></div>
+            </div>
+            <p className="form-hint">It shows on Due a month before, and you get a notification then if they&apos;re on. <button type="button" className="link-btn" onClick={() => setDueOn(null)}>Set it by miles instead</button></p>
+          </>
+        ) : <>
         <p className="form-hint">Fill in either limit or both. Whichever comes first makes it due.</p>
         <div className="form-grid-2">
           <div className="form-group"><label className="form-label" htmlFor="s-ir">Every ({unit})</label><input id="s-ir" className="form-input" inputMode="decimal" value={f.intervalReading} onChange={set("intervalReading")} /></div>
@@ -126,6 +161,7 @@ function ScheduleForm({ vehicle: v, item, onClose, onDone }: { vehicle: Vehicle;
           <div className="form-group"><label className="form-label" htmlFor="s-br">Last done at ({unit})</label><input id="s-br" className="form-input" inputMode="decimal" value={f.baseReading} onChange={set("baseReading")} /></div>
         </div>
         {item && <p className="form-hint">Logging a service updates "last done" by itself. Only change these to correct your starting point.</p>}
+        </>}
         <div className="form-group"><label className="form-label" htmlFor="s-notes">Notes</label><textarea id="s-notes" className="form-textarea" rows={2} value={f.notes} onChange={set("notes")} /></div>
       </div>
     </Modal>

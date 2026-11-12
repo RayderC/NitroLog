@@ -12,7 +12,7 @@ import PriceCheck from "@/app/components/PriceCheck";
 import WatchButton from "@/app/components/WatchButton";
 import { api, fmtDate, localDay, parseNum, useApi } from "@/lib/client";
 import { parseProductTitle, priceToCents } from "@/lib/partText";
-import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type PartsHistory, type PriceWatch, type ScheduleItem, type ServiceDetail, type ServiceItem, type Vehicle } from "@/lib/types";
+import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type PartsHistory, type PriceWatch, type ScheduleItem, type ServiceDetail, type ServiceItem, type Spec, type Vehicle } from "@/lib/types";
 import { fmtMoney, meterUnit, readingFromInput, readingToInput, toCents } from "@/lib/units";
 
 /** `unitCents` is the price of one, kept so the line total follows the quantity until someone types their own total. */
@@ -95,6 +95,8 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
   const vehicle = vehicles?.find(v => v.id === vehicleId);
   const { data: schedule } = useApi<ScheduleItem[]>(vehicleId ? `/api/vehicles/${vehicleId}/schedule?today=${localDay()}` : null);
   const { data: history } = useApi<PartsHistory>(vehicleId ? `/api/vehicles/${vehicleId}/parts-history` : null);
+  const { data: specs } = useApi<Spec[]>(vehicleId ? `/api/vehicles/${vehicleId}/specs` : null);
+  const capacities = (specs ?? []).filter(s => /capacity/i.test(s.label));
   const [usedLastTime, setUsedLastTime] = useState<number[]>([]);
   const [sentNote, setSentNote] = useState("");
   const { data: watches, reload: reloadWatches } = useApi<PriceWatch[]>("/api/price-watches");
@@ -385,6 +387,9 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
 
           <section className="section">
             <div className="section-header"><h2 className="section-title">Parts &amp; fluids</h2></div>
+            {capacities.length > 0 && (
+              <p className="capacity-line"><b>Capacities</b> {capacities.map(s => <span key={s.id}>{s.label.replace(/ capacity$/i, "")} {s.value}</span>)}</p>
+            )}
             {sentNote && <p className="sent-note">{sentNote}</p>}
             {!readOnly && lastTimeOffers.map(o => (
               <div key={o.id} className="last-time">

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { clientIp, getSession, sameOrigin } from "@/lib/api";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { recordSignIn } from "@/lib/signIns";
 
 // Compared against when the username doesn't exist, so a miss takes as long as a wrong password.
 const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12);
@@ -20,10 +21,12 @@ export async function POST(req: NextRequest) {
     .get(name) as { id: number; username: string; password: string; disabled: number; token_version: number } | undefined;
   const matches = bcrypt.compareSync(String(password), user?.password ?? DUMMY_HASH);
   if (!user || user.disabled || !matches) {
+    if (user && !user.disabled) recordSignIn(user.id, req, false);
     return NextResponse.json({ message: "Invalid username or password" }, { status: 401 });
   }
   const session = await getSession();
   session.user = { id: user.id, username: user.username, v: user.token_version };
   await session.save();
+  recordSignIn(user.id, req);
   return NextResponse.json({ ok: true });
 }

@@ -102,6 +102,11 @@ export function startPushScheduler() {
   if (g.__nitrologPush) return;
   g.__nitrologPush = true;
   const run = async () => {
+    // The nightly backup first, so a problem below can't skip it.
+    const [{ nightlyBackup }, { backupConfig }] = await Promise.all([import("./backupCore"), import("./backup")]);
+    await nightlyBackup(backupConfig).catch(e => console.error("[backup] nightly copy failed", e));
+    const { checkForUpdate } = await import("./updateCore");
+    await checkForUpdate("rayderc/nitrolog");
     await runPushCheck().catch(e => console.error("[push] check failed", e));
     // Recalls and price drops have their own pacing, so most passes do little or nothing.
     const { runRecallCheck } = await import("./recalls");

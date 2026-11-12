@@ -42,7 +42,8 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # Strip CRLF in case the repo was checked out on Windows; it would break the shebang.
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/docker-entrypoint.sh \
-    && mkdir -p /config && chown node:node /config
+    && mkdir -p /config && chown node:node /config \
+    && date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time
 
 EXPOSE 7100
 

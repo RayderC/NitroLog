@@ -17,12 +17,14 @@ Self-hosted maintenance tracker for cars, motorcycles, powersports, and project 
 - **Safety recalls**: once a week NitroLog checks NHTSA's free recall list for each vehicle's year, make and model. Open recalls sit in one collapsed line at the bottom of the vehicle's page, where you can mark them fixed, hide one, or hide them all. Recall alerts are off unless you turn them on in Settings, and then only a recall that's new since the last check alerts, once.
 - **Price-drop alerts** (off until you turn them on in Settings): tick **Watch price** on a part with a store link (on the Parts page or a service record; ticking it turns the alerts on), and once a day NitroLog checks it and tells you when it drops at least 5%.
 - **Mods in the build log**: a service record in the Upgrade / mod category adds itself to the Build tab's log with its parts, and you can note power before and after. The Build tab shows where the car started and where it is now.
-- **Admin**: rename people, reset passwords, make admins, disable or delete accounts. Deleting someone asks who gets each of their vehicles, or whether to delete it. The Admin page lists every vehicle on the server and can change a vehicle's owner.
+- **Admin**: rename people, reset passwords, make admins, disable, sign out of every device, or delete accounts. The Admin page also says when a newer version is on Docker Hub (it checks once a day and sends nothing about you), and has backups. Deleting someone asks who gets each of their vehicles, or whether to delete it. The Admin page lists every vehicle on the server and can change a vehicle's owner.
 - **Read a screenshot or receipt** (optional): pick a screenshot of a product page or an order, or a photo of a receipt, and every part on it goes in with its price. You can also paste a picture straight into the link box, or tap **Paste picture**. Uses Google's Gemini API, which has a free tier. See below.
 - **Send to NitroLog**: a bookmark (set up under Settings) that you tap on any store's product page. It reads that page in your own browser, price included, and opens a new service record with the part filled in.
 - **Part prices** (optional): current eBay prices for a part, matched to your vehicle where eBay knows the fit, plus quick searches on RockAuto, AutoZone, Amazon and Google Shopping.
 - **Schedules**: editable starter schedules for cars, motorcycles, powersports and track cars. Logging a service resets the items it covers.
-- **Specs**: oil types, torque values, filter numbers and how-to notes for each vehicle.
+- **Specs**: oil types, torque values, filter numbers and how-to notes for each vehicle. **Fluid capacities** fills in oil, coolant, transmission, differentials and more on one sheet, and they show on the service form while you log.
+- **Paperwork**: registration, insurance, inspection and emissions presets on the schedule. Pick when it's next due and it shows on Due a month before, with a notification if you have them on.
+- **Sign-ins**: Settings lists your recent sign-ins and wrong-password tries, and can sign out every other device.
 - **Odometer or hours**: any service or fill-up updates the reading, and there's a one-tap update as well.
 - **Fuel log** (optional): fill-ups with fuel economy, tucked inside each vehicle.
 - **VIN lookup**: optional decode through the free NHTSA database, which mainly covers US-market vehicles. You can always type details in.
@@ -102,7 +104,9 @@ Without keys, the store search links still work. Each lookup is cached for 30 mi
 
 ## Backups
 
-Everything lives in the `/config` volume, including photos and documents. **Settings → Export** gives you your data in readable form, but NitroLog can't load an export back in, so use this volume copy for backups you may need to restore. To copy it while the container is stopped:
+NitroLog copies its database every night into `/config/backups` and keeps the last 7. On **Admin → Backups** you can save a copy now, **Download backup** (one `.tar` with the database and every photo and document), and restore from a downloaded file or any saved copy. Restoring checks the file first and saves a copy of what's there now, so a restore can be undone the same way. Keep a downloaded backup somewhere other than the server now and then, since the nightly copies live on the same disk. `BACKUP_DIR` moves them.
+
+**Settings → Export** gives you your data in readable form, but it can't be loaded back in. You can also copy the whole volume while the container is stopped:
 
 ```bash
 docker run --rm -v nitrolog_data:/config -v "$PWD":/backup debian:bookworm-slim \

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import BackupsCard from "@/app/components/BackupsCard";
 import EbaySetup from "@/app/components/EbaySetup";
+import UpdateNotice from "@/app/components/UpdateNotice";
 import GeminiSetup from "@/app/components/GeminiSetup";
 import Icon from "@/app/components/Icon";
 import Modal from "@/app/components/Modal";
@@ -38,6 +40,7 @@ export default function AdminPage() {
         <div><h1 className="dash-title">Admin</h1><p className="dash-subtitle">Accounts on this server</p></div>
         <button className="btn-primary btn-sm" onClick={() => setCreating(true)}><Icon name="plus" size={14} /> New user</button>
       </div>
+      <UpdateNotice />
       {(err || error) && <p className="form-error" style={{ marginBottom: 12 }}>{err || error}</p>}
       {!data ? !error && <div className="loading">Loading…</div> : (
         <div className="row-list">
@@ -58,6 +61,9 @@ export default function AdminPage() {
                 </div>
                 <div className="flex gap-2" style={{ marginTop: 10, flexWrap: "wrap" }}>
                   <button className="btn-secondary btn-sm" onClick={() => setEditingUser(u)}><Icon name="edit" size={14} /> Edit</button>
+                  {!self && !u.disabled && <button className="btn-secondary btn-sm" onClick={() => {
+                    if (confirm(`Sign ${u.username} out of every device?`)) act(() => api(`/api/admin/users/${u.id}/sign-out`, { method: "POST" }));
+                  }}>Sign out</button>}
                   {!self && <button className="btn-danger btn-sm" onClick={() => setDeleting(u)}>Delete</button>}
                 </div>
               </div>
@@ -105,6 +111,7 @@ export default function AdminPage() {
         <EbaySetup />
         <GeminiSetup />
       </div>
+      <BackupsCard appName="NitroLog" what="the database and every photo and document" />
       {creating && <CreateUser onClose={() => setCreating(false)} onDone={() => { setCreating(false); reload(); }} />}
       {editingUser && <EditUser user={editingUser} self={editingUser.id === me.id} onClose={() => setEditingUser(null)} onDone={() => { setEditingUser(null); act(async () => {}); }} />}
       {deleting && <DeleteUser user={deleting} people={people.filter(p => p.id !== deleting.id)} onClose={() => setDeleting(null)}

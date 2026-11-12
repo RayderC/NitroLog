@@ -58,6 +58,9 @@ These are worked out when read rather than stored, so editing or deleting a reco
 - **Due status**: `computeDue()` in `lib/due.ts`. Either limit passing makes it overdue. "Soon" means the last 10% of the reading interval or the last 30 days.
 - **Fuel economy**: `computeEconomy()` in `lib/fuel.ts`, fill-to-fill. Partial fills add to the next full tank.
 - **Parts page**: `usedParts()` in `lib/repo/partsHistory.ts` (`GET /api/parts/used`) groups `service_items` by kind, name, part number and brand across the user's vehicles; shelf stock matches either kind since shelf items have none. The **Used before** tab is the default; the old inventory page is `ShelfTab`. Watch price is a checkbox (`WatchButton`), and ticking it turns `price_alerts` on.
+- **Backups**: `lib/backupCore.ts` and `lib/updateCore.ts` are copied unchanged into every app (NitroLog, AstroFit, ComicOrbit, SkyBit, Amethyst); fix them in all five. `lib/backup.ts` is NitroLog's config. Nightly copies run from the hourly job. Restore validates, makes a `before-restore` copy, closes the database (`closeDb`), swaps the file, and the next query reopens and migrates. Copy names are stamped to the millisecond; restoring a saved copy works on a temp copy of it.
+- **Update notice**: the Dockerfile writes `/app/.build-time`; the Admin page compares it with Docker Hub's `tag_last_pushed` (12 hours of slack). No file means running from source, and the check is off.
+- **Sign-ins**: `sign_ins` (schema V9) keeps 50 per user, failed tries too. Sign out everywhere bumps `token_version`.
 - **Parts on hand**: `stock_in` minus what `service_items` used, so editing or deleting a record restores stock. Setting on-hand in the parts form adds past use back into `stock_in`.
 - **Build invested**: bought wishlist parts plus service records in the `upgrade` category. A part logged in both counts twice, and the Build tab says so.
 

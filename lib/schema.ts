@@ -324,3 +324,16 @@ CREATE INDEX build_log_service ON build_log(service_id);
 export const SCHEMA_V8 = `
 UPDATE users SET recall_alerts = 0;
 `;
+
+/** Sign-in history, for Settings and for spotting someone else trying your password. */
+export const SCHEMA_V9 = `
+CREATE TABLE sign_ins (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  ip TEXT,
+  device TEXT,
+  ok INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX sign_ins_user ON sign_ins(user_id, at);
+`;
