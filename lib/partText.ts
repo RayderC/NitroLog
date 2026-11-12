@@ -57,23 +57,27 @@ export function parseProductTitle(raw: string, brandHint?: string | null): Title
   const pn = head.match(/\b(?!\d{1,2}W-?\d{2}\b)([A-Z]{1,5}-?\d{2,}[A-Z0-9-]*|\d{3,}-?[A-Z]{1,4}\d*)\b/);
   const partNumber = pn ? pn[1] : null;
 
-  // Size, for fluids: "5 Quart", "1 Gallon", "32 oz".
+  // The name is the first phrase, without the brand, part number or size. "… by MMX" names the maker.
+  let name = head.split(/:\s|,\s|\s-\s|\s\(/)[0];
+  const by = name.match(/\s+by\s+([A-Z][\w&.' -]{1,40})$/);
+  if (by) { name = name.slice(0, by.index); if (!brand) brand = by[1].trim(); }
+
+  const fluid = /\b(oil|fluid|coolant|antifreeze|grease|atf|lubricant|cleaner|additive)\b/i.test(head)
+    && !/\b(filter|pan|pump|cooler|cap|seal|gasket|sensor|plug|camshaft|cam|kit)\b/i.test(name);
+
+  // Size, for fluids only: "5 Quart", "1 Gallon", "32 oz". On a part, "6.4L" is an engine size.
   let quantity: number | null = null, unit: string | null = null;
-  const size = head.match(/\b(\d+(?:\.\d+)?)\s*-?\s*(quarts?|qts?|gallons?|gals?|liters?|litres?|l|fl\.?\s*oz|ounces?|oz|ml)\b/i);
+  const size = fluid ? head.match(/\b(\d+(?:\.\d+)?)\s*-?\s*(quarts?|qts?|gallons?|gals?|liters?|litres?|l|fl\.?\s*oz|ounces?|oz|ml)\b/i) : null;
   if (size) {
     quantity = Number(size[1]);
     unit = UNITS.find(([re]) => re.test(size[2].replace(/\s+/g, " ")))?.[1] ?? null;
   }
 
-  // The name is the first phrase, without the brand, part number or size.
-  let name = head.split(/:\s|,\s|\s-\s|\s\(/)[0];
   if (brand && name.toLowerCase().startsWith(brand.toLowerCase())) name = name.slice(brand.length);
   if (partNumber) name = name.replace(partNumber, "");
   if (size) name = name.replace(size[0], "");
   name = name.replace(/\s+/g, " ").replace(/^[\s,:-]+|[\s,:-]+$/g, "").slice(0, 120);
   if (!name) name = head.slice(0, 120);
-
-  const fluid = /\b(oil|fluid|coolant|antifreeze|grease|atf|lubricant|cleaner|additive)\b/i.test(head) && !/\bfilter\b/i.test(name);
   return { name, brand, partNumber, quantity, unit, kind: fluid ? "fluid" : "part" };
 }
 

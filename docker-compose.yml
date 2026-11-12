@@ -10,6 +10,8 @@ services:
     #   # Optional: free eBay keys for part prices on the service form (see README).
     #   EBAY_CLIENT_ID: ""
     #   EBAY_CLIENT_SECRET: ""
+    #   # Optional: a free Google Gemini key, for reading screenshots and receipts (see README).
+    #   GEMINI_API_KEY: ""
     restart: unless-stopped
 
 volumes:

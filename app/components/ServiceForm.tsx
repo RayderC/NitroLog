@@ -201,8 +201,11 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
       cost: cents !== null ? (cents / 100).toFixed(2) : "",
       url: l.url,
     };
-    const empty = parts.findIndex(x => !x.name.trim() && !x.partNumber.trim());
-    setParts(empty >= 0 ? parts.map((x, i) => (i === empty ? { ...row, kind: x.kind, unit: x.unit } : x)) : [...parts, row]);
+    // Several can arrive at once from a receipt, so each works on the latest list.
+    setParts(ps => {
+      const empty = ps.findIndex(x => !x.name.trim() && !x.partNumber.trim());
+      return empty >= 0 ? ps.map((x, i) => (i === empty ? { ...row, kind: l.kind, unit: row.unit || x.unit } : x)) : [...ps, row];
+    });
   }
 
   function applyLastTime(offer: { id: number; items: ServiceItem[] }) {

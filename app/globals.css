@@ -1771,3 +1771,8 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .part-link { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 13px; }
 .part-link a { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-cyan); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
 .qf-open { display: inline-block; color: var(--accent-cyan); text-decoration: underline; }
+
+/* ── Read a screenshot or receipt ── */
+.link-paste-photo { margin-top: 8px; }
+.photo-choices { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 8px; }
+.photo-choices .btn-secondary { text-align: left; white-space: normal; justify-content: flex-start; }

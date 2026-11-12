@@ -12,7 +12,8 @@ Self-hosted maintenance tracker for cars, motorcycles, powersports, and project 
 
 - **What's due**: overdue and upcoming service across every vehicle, by distance, engine hours or time, whichever comes first.
 - **Service records**: date, reading, parts and fluids with part numbers and costs, labor hours and cost, and notes.
-- **Quick part entry**: typing a part suggests ones you've used before and ones on your shelf, with what you paid. Ticking a schedule item offers last time's parts in one tap. Or paste an Amazon, AutoZone or O'Reilly product link, and it adds the part with its name, brand and part number. Amazon links bring the price too, or type what you paid beside the link. The link is saved with the part, so you can open the store page again from the record. The Parts page takes a link the same way.
+- **Quick part entry**: typing a part suggests ones you've used before and ones on your shelf, with what you paid. Ticking a schedule item offers last time's parts in one tap. Or paste a link to the product from almost any store, and it adds the part with its name, brand, part number and price. Stores that refuse apps (AutoZone, O'Reilly, eBay without keys) fill in what the link itself says, and you type the price. The link is saved with the part, so you can open the store page again from the record. The Parts page takes a link the same way.
+- **Read a screenshot or receipt** (optional): pick a screenshot of a product page or an order, or a photo of a receipt, and every part on it goes in with its price. Uses Google's Gemini API, which has a free tier. See below.
 - **Send to NitroLog**: a bookmark (set up under Settings) that you tap on any store's product page. It reads that page in your own browser, price included, and opens a new service record with the part filled in.
 - **Part prices** (optional): current eBay prices for a part, matched to your vehicle where eBay knows the fit, plus quick searches on RockAuto, AutoZone, Amazon and Google Shopping.
 - **Schedules**: editable starter schedules for cars, motorcycles, powersports and track cars. Logging a service resets the items it covers.
@@ -70,7 +71,11 @@ The service form's **Check prices** shows current eBay listings for a part when 
 1. Sign up at [developer.ebay.com](https://developer.ebay.com/) and create an application keyset in the **Production** column.
 2. Paste the App ID (Client ID) and Cert ID (Client Secret) into the Admin page and tap Save, then Test.
 
-You can set them as `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` on the container instead, and then the Admin page shows them as set there. Amazon has no price API a personal app can use, so it's offered as a search link.
+You can set them as `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` on the container instead, and then the Admin page shows them as set there. Amazon has no price API a personal app can use, so it's offered as a search link. The same keys let a pasted eBay listing link fill in its title, brand, part number and price, since eBay doesn't let apps read its pages.
+
+### Reading screenshots and receipts (optional)
+
+**Read a screenshot or receipt** under the link box sends the picture to Google's Gemini API, which lists the parts and prices in it. An admin pastes a free key under **Admin → Optional services**, which has a guide; get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) without adding a card. NitroLog doesn't keep the pictures. On Gemini's free tier Google may use what you send to improve its products, so crop out anything private first. `GEMINI_API_KEY` on the container works too, and `GEMINI_MODEL` picks the model (default `gemini-flash-lite-latest`).
 
 Without keys, the store search links still work. Each lookup is cached for 30 minutes, and each person can do 30 a minute, which keeps well inside eBay's free daily allowance.
 
@@ -86,6 +91,8 @@ Without keys, the store search links still work. Each lookup is cached for 30 mi
 | `PUSH_CONTACT` | project URL | `mailto:` or `https:` contact sent to push services |
 | `EBAY_CLIENT_ID` | unset | Optional. eBay Production App ID, for part prices. Usually set on the Admin page instead |
 | `EBAY_CLIENT_SECRET` | unset | Optional. eBay Production Cert ID. Usually set on the Admin page instead |
+| `GEMINI_API_KEY` | unset | Optional. Google Gemini key for reading screenshots and receipts. Usually set on the Admin page instead |
+| `GEMINI_MODEL` | `gemini-flash-lite-latest` | Optional. The Gemini model that reads pictures |
 
 ## Backups
 

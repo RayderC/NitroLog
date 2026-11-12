@@ -1,31 +1,39 @@
-// Fills in a part from a store link you paste. AutoZone and O'Reilly links spell out the product, so those are
-// read from the link alone (both stores refuse apps). For Amazon, NitroLog asks for that one page, saying who
-// it is, and Amazon serves it the product page: title, brand, part number and price. It never poses as a
-// browser: if Amazon says no, it falls back to the words in the link, and the price is typed.
+// Fills in a part from a store link you paste. NitroLog asks for that one page under its own name and never
+// poses as a browser. Amazon serves it the product page, so the title, price, brand and part number come from
+// there. Most other stores publish the same details for search engines, which lib/pageReader.ts reads.
+// AutoZone and O'Reilly refuse apps, so those come from the words in the link, and eBay refuses apps too, so
+// eBay listings are read through eBay's own API when its keys are set. A store that says no gets a clear
+// message suggesting a screenshot instead.
 import { HttpError, bad } from "./api";
+import { ebayItem } from "./ebay";
+import { isChallengePage, readProductPage } from "./pageReader";
 import { BRANDS, parseProductTitle, priceToCents } from "./partText";
+import { AGENT, checkPublicUrl, getPublicPage } from "./safeFetch";
 
 export type LinkedPart = {
-  store: "Amazon" | "AutoZone" | "O'Reilly";
+  /** The shop's name, like "Amazon" or "Modern Muscle Xtreme". */
+  store: string;
   kind: "part" | "fluid";
   name: string;
   brand: string | null;
   partNumber: string | null;
-  /** The price on the page Amazon served, in cents. Null for AutoZone and O'Reilly, which don't serve pages. */
+  /** The price on the page, in cents. Null when the store didn't say, or refuses apps. */
   priceCents: number | null;
   quantity: number | null;
   unit: string | null;
   /** True when the product's name was found. False for a bare Amazon link Amazon wouldn't describe. */
   named: boolean;
-  /** Where the details came from: the title Amazon served, or only the words in the link. */
-  from: "title" | "link";
+  /** Where the details came from: the store's page or API, or only the words in the link. */
+  from: "title" | "page" | "link";
   url: string;
 };
 
-const STORES: { store: LinkedPart["store"]; hosts: RegExp }[] = [
+type Known = "Amazon" | "AutoZone" | "O'Reilly" | "eBay";
+const STORES: { store: Known; hosts: RegExp }[] = [
   { store: "Amazon", hosts: /^(www\.|smile\.)?amazon\.com$|^(a\.co|amzn\.to|amzn\.com)$/ },
   { store: "AutoZone", hosts: /^(www\.)?autozone\.com$/ },
   { store: "O'Reilly", hosts: /^(www\.)?oreillyauto\.com$/ },
+  { store: "eBay", hosts: /^(www\.|m\.)?ebay\.com$|^ebay\.us$/ },
 ];
 const SHORT = /^(a\.co|amzn\.to|amzn\.com)$/;
 
@@ -53,6 +61,18 @@ function takePartNumber(words: string[]): { partNumber: string | null; rest: str
 }
 
 type Parsed = Omit<LinkedPart, "url" | "store" | "kind" | "quantity" | "unit" | "from">;
+
+/** Product words from a link's last wordy path segment, for a store that won't describe the page. */
+function fromSlug(u: URL): Parsed | null {
+  const seg = u.pathname.split("/").filter(Boolean).map(x => { try { return decodeURIComponent(x); } catch { return x; } })
+    .filter(x => /[a-z]{3,}.*-.*[a-z]{3,}/i.test(x)).pop();
+  if (!seg) return null;
+  const words = seg.toLowerCase().replace(/\.(html?|aspx?|php)$/, "").split(/[-_+]+/).filter(Boolean);
+  const { brand, rest } = takeBrand(words);
+  const kept = rest.filter(w => !AMAZON_FILLER.has(w));
+  if (!kept.length) return null;
+  return { name: title(kept).slice(0, 160), brand, partNumber: null, priceCents: null, named: true };
+}
 
 function fromAutoZone(u: URL): Parsed {
   // /p/stp-extended-life-engine-oil-filter-s5xl/663654, sometimes after a category path.
@@ -141,9 +161,6 @@ async function expandShortLink(start: URL): Promise<URL> {
   return url;
 }
 
-/** Says who's asking. Amazon serves this the product page. */
-const AGENT = "NitroLog/1.0 (personal vehicle maintenance log; reads one product page a person pasted)";
-
 /** What Amazon's product page says about the item. */
 export type AmazonPage = { title: string; priceCents: number | null; brand: string | null; partNumber: string | null; count: number | null };
 
@@ -216,26 +233,75 @@ const decode = (s: string) => s
   .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
   .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/\s+/g, " ").trim();
 
+/** Tracking bits that don't change which product a link shows. */
+const TRACKING = /^(utm_\w+|fbclid|gclid|gbraid|wbraid|msclkid|mc_[a-z]+|_pos|_sid|_ss|_psq|_v|ref|ref_|srsltid|campid|customid|toolid|mkevt|mkcid|mkrid|sssrc|ssuid|widget_ver|stype|clickid|irclickid|cjevent|_branch_match_id)$/i;
+
+function cleanUrl(u: URL): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of u.searchParams) if (!TRACKING.test(k)) q.append(k, v);
+  const qs = q.toString();
+  return `${u.origin}${u.pathname}${qs ? `?${qs}` : ""}`;
+}
+
+function linkedFrom(store: string, title: string, url: string, extra: { brand?: string | null; partNumber?: string | null; priceCents?: number | null; count?: number | null }, from: LinkedPart["from"]): LinkedPart {
+  const t = parseProductTitle(title, extra.brand ?? null);
+  // A "Pack of 12" is 12 parts at the pack's price. A fluid's size comes from its title.
+  const quantity = t.kind === "part" && extra.count && extra.count > 1 ? extra.count : t.quantity;
+  return { store, ...t, partNumber: extra.partNumber ?? t.partNumber, quantity, priceCents: extra.priceCents ?? null, named: true, from, url };
+}
+
+/** An eBay listing, through eBay's API. Short ebay.us links are followed to the listing first. */
+async function fromEbay(u: URL): Promise<LinkedPart> {
+  if (/^ebay\.us$/i.test(u.hostname)) u = (await getPublicPage(u, { maxBytes: 1 })).url;
+  const id = u.pathname.match(/\/itm\/(?:[^/]+\/)?(\d{9,15})(?:$|[/?])/)?.[1] ?? u.searchParams.get("item");
+  if (!id || !/^\d{9,15}$/.test(id)) throw bad("That eBay link isn't a listing. Open the item, then copy its link.");
+  const variation = u.searchParams.get("var");
+  const clean = `https://www.ebay.com/itm/${id}${variation && /^\d+$/.test(variation) ? `?var=${variation}` : ""}`;
+  const item = await ebayItem(id, variation && /^\d+$/.test(variation) ? variation : null, clean);
+  if (item) return linkedFrom("eBay", item.title, item.url, item, "page");
+  const words = fromSlug(u);
+  if (words) return { store: "eBay", kind: "part", quantity: null, unit: null, ...words, from: "link", url: clean };
+  throw new HttpError(422, "eBay doesn't let apps read its pages. Take a screenshot of the listing and use Read a screenshot, or ask your admin to add eBay keys on the Admin page.");
+}
+
+/** Any other shop: read the page it serves NitroLog, for the details it publishes for search engines. */
+async function fromAnyStore(u: URL): Promise<LinkedPart> {
+  checkPublicUrl(u);
+  const page = await getPublicPage(u);
+  const host = page.url.hostname.replace(/^www\./, "");
+  const clean = cleanUrl(page.url);
+  const info = page.status >= 200 && page.status < 300 ? readProductPage(page.html) : null;
+  if (info) {
+    // Only US dollars are taken as a price, since that's what the form is in.
+    const price = info.currency && info.currency.toUpperCase() !== "USD" ? null : info.priceCents;
+    return linkedFrom(info.site ?? host, info.title, clean, { ...info, priceCents: price }, "page");
+  }
+  const blocked = page.status === 403 || page.status === 429 || page.status === 503 || isChallengePage(page.html);
+  const words = fromSlug(page.url);
+  if (words && page.status !== 404 && page.status !== 410) return { store: host, kind: "part", quantity: null, unit: null, ...words, from: "link", url: clean };
+  if (blocked) throw new HttpError(422, `${host} doesn't let apps read its pages. Take a screenshot of the product and use Read a screenshot instead.`);
+  if (page.status === 404 || page.status === 410) throw new HttpError(422, `${host} says that page doesn't exist. Check the link.`);
+  if (page.status === 0) throw new HttpError(422, `Couldn't open ${host}. Check the link, or take a screenshot and use Read a screenshot.`);
+  throw new HttpError(422, `${host} didn't describe a product on that page. Take a screenshot and use Read a screenshot instead.`);
+}
+
 export async function partFromLink(raw: unknown): Promise<LinkedPart> {
-  if (typeof raw !== "string" || raw.length > 2000) throw bad("Paste a link from Amazon, AutoZone or O'Reilly.");
+  if (typeof raw !== "string" || raw.length > 2000) throw bad("Paste a link to the product's page.");
   // Phones often share "Product name https://…", so find the link inside whatever was pasted.
   const found = raw.match(/https?:\/\/\S+/)?.[0] ?? raw.trim();
   let u: URL;
-  try { u = new URL(found); } catch { throw bad("That isn't a link. Copy the product's link from Amazon, AutoZone or O'Reilly."); }
+  try { u = new URL(found); } catch { throw bad("That isn't a link. Copy the product page's link from your browser or the store's app."); }
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw bad("Links need to start with http:// or https://");
   const store = storeOf(u);
-  if (!store) throw bad("Only Amazon, AutoZone and O'Reilly links work for now.");
+  if (!store) return fromAnyStore(u);
+  if (store === "eBay") return fromEbay(u);
   if (store === "Amazon" && SHORT.test(u.hostname.toLowerCase())) u = await expandShortLink(u);
   const clean = `${u.origin}${u.pathname}`;
   if (store === "Amazon") {
     const page = await amazonPage(new URL(clean));
-    if (page) {
-      const t = parseProductTitle(page.title, page.brand);
-      // A "Pack of 12" is 12 parts at the pack's price. A fluid's size comes from its title.
-      const quantity = t.kind === "part" && page.count && page.count > 1 ? page.count : t.quantity;
-      return { store, ...t, partNumber: page.partNumber ?? t.partNumber, quantity, priceCents: page.priceCents, named: true, from: "title", url: clean };
-    }
+    if (page) return linkedFrom("Amazon", page.title, clean, page, "title");
   }
+  // AutoZone and O'Reilly refuse apps, so their details come from the words in the link.
   const part = store === "AutoZone" ? fromAutoZone(u) : store === "O'Reilly" ? fromOReilly(u) : fromAmazon(u);
-  // Drop tracking and session bits before handing the link back.
   return { store, kind: "part", quantity: null, unit: null, ...part, from: "link", url: clean };
 }

@@ -1,9 +1,12 @@
 import { bad, route } from "@/lib/api";
 import { ebayStatus, resetEbay } from "@/lib/ebay";
+import { geminiStatus } from "@/lib/gemini";
 import { setSetting } from "@/lib/settings";
 
+const status = () => ({ ebay: ebayStatus(), gemini: geminiStatus() });
+
 /** Optional services and whether they're set up. Keys never leave the server, only their last few characters. */
-export const GET = route(() => ({ ebay: ebayStatus() }), { admin: true });
+export const GET = route(() => status(), { admin: true });
 
 export const PUT = route(({ body }) => {
   const b = body ?? {};
@@ -22,5 +25,14 @@ export const PUT = route(({ body }) => {
     }
     resetEbay();
   }
-  return { ebay: ebayStatus() };
+  if (b.gemini !== undefined) {
+    if (b.gemini === null) setSetting("gemini_api_key", null);
+    else {
+      const key = typeof b.gemini?.apiKey === "string" ? b.gemini.apiKey.trim() : "";
+      // New keys start with "AQ." and older ones with "AIza"; both are letters, digits, dots, dashes and underscores.
+      if (!/^[\w.\-]{20,300}$/.test(key)) throw bad("That doesn't look like a Gemini key. Copy the whole key from AI Studio.");
+      setSetting("gemini_api_key", key);
+    }
+  }
+  return status();
 }, { admin: true });

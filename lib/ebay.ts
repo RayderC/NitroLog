@@ -108,6 +108,57 @@ async function search(q: string, fitment: string | null): Promise<PriceResult[]>
   });
 }
 
+export type EbayItem = { title: string; brand: string | null; partNumber: string | null; priceCents: number | null; url: string };
+
+type ItemJson = {
+  title?: string; brand?: string; mpn?: string; itemWebUrl?: string;
+  price?: { value?: string; currency?: string };
+  localizedAspects?: { name?: string; value?: string }[];
+};
+
+/** Turns eBay's item JSON into part details. Exported for tests. */
+export function ebayItemFrom(j: ItemJson, fallbackUrl: string): EbayItem | null {
+  if (!j.title) return null;
+  const aspect = (re: RegExp) => j.localizedAspects?.find(a => a.name && re.test(a.name))?.value?.trim() || null;
+  const value = Number(j.price?.value);
+  const url = j.itemWebUrl && /^https:\/\/(www\.)?ebay\.com\//.test(j.itemWebUrl) ? j.itemWebUrl.split("?")[0] : fallbackUrl;
+  const pn = (j.mpn && !/^(n\/?a|does not apply|unbranded)$/i.test(j.mpn) ? j.mpn : null) ?? aspect(/^manufacturer part number$/i);
+  const brand = (j.brand && !/^(unbranded|n\/?a|does not apply)$/i.test(j.brand) ? j.brand : null) ?? aspect(/^brand$/i);
+  return {
+    title: j.title.slice(0, 300),
+    brand: brand && !/^(unbranded|n\/?a|does not apply)$/i.test(brand) ? brand.slice(0, 80) : null,
+    partNumber: pn && !/^(n\/?a|does not apply)$/i.test(pn) ? pn.slice(0, 60) : null,
+    priceCents: Number.isFinite(value) && value > 0 && (j.price?.currency ?? "USD") === "USD" ? Math.round(value * 100) : null,
+    url,
+  };
+}
+
+/**
+ * One eBay listing, by the number in its link, through eBay's API. eBay doesn't let apps read its pages,
+ * so this needs the same free keys as live prices. A listing with options (sizes, sides) returns its first option.
+ */
+export async function ebayItem(itemId: string, variationId: string | null, fallbackUrl: string): Promise<EbayItem | null> {
+  if (!ebayEnabled()) return null;
+  const headers = async () => ({ Authorization: `Bearer ${await appToken()}`, "X-EBAY-C-MARKETPLACE-ID": "EBAY_US" });
+  const params = new URLSearchParams({ legacy_item_id: itemId });
+  if (variationId) params.set("legacy_variation_id", variationId);
+  let res = await fetch(`${API}/buy/browse/v1/item/get_item_by_legacy_id?${params}`, { headers: await headers(), signal: AbortSignal.timeout(8000) });
+  if (res.status === 401) token = null;
+  if (res.ok) return ebayItemFrom(await res.json() as ItemJson, fallbackUrl);
+  // 11006: the listing has options, so eBay wants one of them. Read them as a group and take the first.
+  const err = await res.json().catch(() => ({})) as { errors?: { errorId?: number }[] };
+  if (res.status === 400 && err.errors?.some(e => e.errorId === 11006)) {
+    res = await fetch(`${API}/buy/browse/v1/item/get_items_by_item_group?item_group_id=${encodeURIComponent(itemId)}`, { headers: await headers(), signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const g = await res.json() as { items?: ItemJson[] };
+      return g.items?.[0] ? ebayItemFrom(g.items[0], fallbackUrl) : null;
+    }
+  }
+  console.warn(`[ebay] item ${itemId} lookup failed: ${res.status}`);
+  if (res.status === 404) throw new HttpError(404, "eBay says that listing doesn't exist. It may have ended and been removed.");
+  return null;
+}
+
 /**
  * Current fixed-price listings for a part, preferring ones eBay says fit the vehicle.
  * Falls back to a plain search when nothing is tagged for the vehicle.

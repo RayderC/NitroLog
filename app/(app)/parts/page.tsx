@@ -65,7 +65,9 @@ export default function PartsPage() {
       const cents = paidCents ?? l.priceCents;
       const qty = l.quantity && l.quantity > 0 ? l.quantity : 1;
       fill({
-        name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "", url: l.url,
+        name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "",
+        // A picture usually has no link, and that shouldn't wipe out one already saved.
+        ...(l.url ? { url: l.url } : {}),
         ...(l.kind === "fluid" ? { unit: l.unit ?? "qt" } : {}),
         ...(cents !== null ? { unitCost: (cents / qty / 100).toFixed(2) } : {}),
         ...(editing === "new" ? { quantity: String(qty) } : {}),
@@ -113,7 +115,7 @@ export default function PartsPage() {
       )}
       {editing && (
         <QuickForm title={item ? `Edit ${item.name}` : "Add part"} fields={fields} onClose={() => setEditing(null)} onSave={save}
-          top={fill => <LinkPaste onPart={fromLink(fill)} currency={currency} label="Fill in from a store link" />}
+          top={fill => <LinkPaste onPart={fromLink(fill)} currency={currency} label="Fill in from a link or screenshot" pickOne />}
           initial={{
             name: item?.name ?? "", partNumber: item?.partNumber ?? "", brand: item?.brand ?? "", quantity: item ? String(item.quantity) : "",
             unit: item?.unit ?? "", unitCost: item?.unitCostCents ? (item.unitCostCents / 100).toFixed(2) : "", minQuantity: item?.minQuantity?.toString() ?? "",
