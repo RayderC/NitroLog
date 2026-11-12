@@ -9,7 +9,7 @@ import { fmtMoney, toCents } from "@/lib/units";
 
 export type LinkedPart = {
   store: string; kind: "part" | "fluid"; name: string; brand: string | null; partNumber: string | null; priceCents: number | null;
-  quantity: number | null; unit: string | null; named: boolean; from: "title" | "page" | "link" | "photo"; url: string;
+  quantity: number | null; unit: string | null; named: boolean; from: "title" | "page" | "link" | "ai" | "photo"; url: string;
 };
 
 /**
@@ -57,7 +57,8 @@ export default function LinkPaste({ onPart, currency, label = "Add from a link o
       const p = await api<LinkedPart>("/api/parts/from-link", { body: { url } });
       onPart(p, paid === null ? null : toCents(paid));
       setUrl(""); setPrice("");
-      const check = p.from === "link" ? `${p.store} doesn't let apps read its pages, so the name comes from the link. Check it` : "Check the details";
+      const check = p.from === "link" ? `${p.store} doesn't let apps read its pages, so the name comes from the link. Check it`
+        : p.from === "ai" ? "Gemini read the page for you. Check the details" : "Check the details";
       setMsg({ ok: true, text: !p.named
         ? `Added. That ${p.store} link doesn't name the product, so type the name.`
         : paid !== null ? `Added from ${p.store} at the price you typed. ${check}.`
@@ -101,12 +102,38 @@ export default function LinkPaste({ onPart, currency, label = "Add from a link o
 
   const enter = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); go(); } };
 
+  /** Pasting a picture into the link box (Ctrl+V, or Paste on a phone) reads it, the same as choosing a file. */
+  function onPaste(e: React.ClipboardEvent) {
+    if (!readers?.photos || busy) return;
+    const pic = Array.from(e.clipboardData.files).find(f => f.type.startsWith("image/"))
+      ?? Array.from(e.clipboardData.items).find(i => i.kind === "file" && i.type.startsWith("image/"))?.getAsFile();
+    if (!pic) return;
+    e.preventDefault();
+    readPicture(pic);
+  }
+
+  /** The Paste picture button reads the clipboard directly. Phones ask first, with a small Paste bubble. */
+  async function pasteButton() {
+    setMsg(null);
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find(t => t.startsWith("image/"));
+        if (type) return readPicture(new File([await item.getType(type)], "pasted", { type }));
+      }
+      setMsg({ ok: false, text: "There's no picture on the clipboard. Copy a screenshot first, or paste a link above." });
+    } catch {
+      setMsg({ ok: false, text: "The browser didn't allow reading the clipboard. Press and hold the link box and choose Paste, or use Read a screenshot." });
+    }
+  }
+  const canPasteButton = typeof navigator !== "undefined" && typeof navigator.clipboard?.read === "function";
+
   return (
     // Not a <form>: this sits inside other forms, and forms can't be nested.
-    <div className="link-paste">
+    <div className="link-paste" onPaste={onPaste}>
       <label className="form-label" htmlFor="part-link">{label}</label>
       <div className="link-paste-row">
-        <input id="part-link" className="form-input" inputMode="url" autoComplete="off" placeholder="Paste a link to the product's page"
+        <input id="part-link" className="form-input" inputMode="url" autoComplete="off"
+          placeholder={readers?.photos ? "Paste a link or a picture" : "Paste a link to the product's page"}
           value={url} onChange={e => setUrl(e.target.value)} onKeyDown={enter} />
         <input className="form-input link-paste-price" inputMode="decimal" autoComplete="off" aria-label={`Price you paid in ${currency}`}
           placeholder="Price paid" title="Leave empty to use the store's price" value={price} onChange={e => setPrice(e.target.value)} onKeyDown={enter} />
@@ -120,6 +147,11 @@ export default function LinkPaste({ onPart, currency, label = "Add from a link o
           <button type="button" className="btn-secondary btn-sm" disabled={!!busy} onClick={() => file.current?.click()}>
             <Icon name="upload" size={14} /> {busy === "photo" ? "Reading the picture…" : "Read a screenshot or receipt"}
           </button>
+          {canPasteButton && (
+            <button type="button" className="btn-secondary btn-sm" disabled={!!busy} onClick={pasteButton}>
+              <Icon name="note" size={14} /> Paste picture
+            </button>
+          )}
         </div>
       ) : me.isAdmin && readers ? (
         <p className="form-hint">To read screenshots and receipts too, <Link href="/admin" className="text-cyan">add a free Gemini key on the Admin page</Link>.</p>

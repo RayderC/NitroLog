@@ -1773,6 +1773,6 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .qf-open { display: inline-block; color: var(--accent-cyan); text-decoration: underline; }
 
 /* ── Read a screenshot or receipt ── */
-.link-paste-photo { margin-top: 8px; }
+.link-paste-photo { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
 .photo-choices { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 8px; }
 .photo-choices .btn-secondary { text-align: left; white-space: normal; justify-content: flex-start; }

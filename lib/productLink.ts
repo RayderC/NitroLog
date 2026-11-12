@@ -6,6 +6,7 @@
 // message suggesting a screenshot instead.
 import { HttpError, bad } from "./api";
 import { ebayItem } from "./ebay";
+import { geminiEnabled, readLinkWithAi } from "./gemini";
 import { isChallengePage, readProductPage } from "./pageReader";
 import { BRANDS, parseProductTitle, priceToCents } from "./partText";
 import { AGENT, checkPublicUrl, getPublicPage } from "./safeFetch";
@@ -23,8 +24,8 @@ export type LinkedPart = {
   unit: string | null;
   /** True when the product's name was found. False for a bare Amazon link Amazon wouldn't describe. */
   named: boolean;
-  /** Where the details came from: the store's page or API, or only the words in the link. */
-  from: "title" | "page" | "link";
+  /** Where the details came from: the store's page or API, Gemini reading the page, or only the words in the link. */
+  from: "title" | "page" | "link" | "ai";
   url: string;
 };
 
@@ -285,7 +286,48 @@ async function fromAnyStore(u: URL): Promise<LinkedPart> {
   throw new HttpError(422, `${host} didn't describe a product on that page. Take a screenshot and use Read a screenshot instead.`);
 }
 
-export async function partFromLink(raw: unknown): Promise<LinkedPart> {
+/**
+ * Reads a pasted link. When NitroLog can't get the full details itself (the store refuses apps, or shows no price),
+ * and a Gemini key is set, Gemini is asked to read the page, and what it finds fills the gaps. `mayUseAi` is
+ * asked first, so the caller can limit how often that happens.
+ */
+export async function partFromLink(raw: unknown, mayUseAi: () => boolean = () => false): Promise<LinkedPart> {
+  let result: LinkedPart | null = null;
+  let failure: HttpError | null = null;
+  try { result = await readLink(raw); }
+  catch (e) {
+    // 422 means the store said no or didn't describe a product. Anything else, like a bad link, is final.
+    if (!(e instanceof HttpError) || e.status !== 422) throw e;
+    failure = e;
+  }
+  const incomplete = !result || result.from === "link" || result.priceCents === null;
+  if (incomplete && geminiEnabled() && mayUseAi()) {
+    const url = result?.url ?? cleanUrl(new URL((raw as string).match(/https?:\/\/\S+/)?.[0] ?? (raw as string).trim()));
+    const ai = await readLinkWithAi(url).catch(() => null);
+    if (ai) {
+      const host = new URL(url).hostname.replace(/^www\./, "");
+      // A page NitroLog read itself keeps its own details. Words from a link give way to what Gemini read on the page.
+      const own = result && result.from !== "link" ? result : null;
+      return {
+        store: result?.store ?? ai.store ?? host,
+        kind: own?.kind ?? ai.kind,
+        name: own?.name ?? ai.name,
+        brand: own?.brand ?? ai.brand ?? result?.brand ?? null,
+        partNumber: own?.partNumber ?? ai.partNumber ?? result?.partNumber ?? null,
+        quantity: own?.quantity ?? ai.quantity,
+        unit: own?.unit ?? ai.unit,
+        priceCents: result?.priceCents ?? ai.priceCents,
+        named: true,
+        from: "ai",
+        url,
+      };
+    }
+  }
+  if (result) return result;
+  throw failure!;
+}
+
+async function readLink(raw: unknown): Promise<LinkedPart> {
   if (typeof raw !== "string" || raw.length > 2000) throw bad("Paste a link to the product's page.");
   // Phones often share "Product name https://…", so find the link inside whatever was pasted.
   const found = raw.match(/https?:\/\/\S+/)?.[0] ?? raw.trim();

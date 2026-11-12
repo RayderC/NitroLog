@@ -135,6 +135,64 @@ export async function readPartsImage(bytes: Buffer, mime: string): Promise<Image
   catch { throw new HttpError(502, "Gemini's answer didn't make sense. Try again, or crop the picture to the parts."); }
 }
 
+export type LinkRead = Omit<ImagePart, "url"> & { store: string | null };
+
+/**
+ * Gemini's answer about one page, checked. Null unless Google reports it actually opened the page, so a guess made
+ * from the link's words alone is never used. Exported for tests.
+ */
+export function cleanLinkRead(text: string, statuses: string[]): LinkRead | null {
+  if (!statuses.includes("URL_RETRIEVAL_STATUS_SUCCESS")) return null;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  let j: Record<string, unknown>;
+  try { j = JSON.parse(m[0]); } catch { return null; }
+  if (!j || typeof j !== "object" || j.error) return null;
+  const name = s(j.name, 160);
+  if (!name || /could not|couldn.t|access denied|robot|captcha|not found|page not/i.test(name)) return null;
+  const currency = s(j.currency, 5);
+  const price = currency && currency.toUpperCase() !== "USD" ? null : n(j.price, 100_000);
+  const unit = s(j.unit, 20);
+  const brand = s(j.brand, 80);
+  return {
+    store: s(j.store, 80), brand, partNumber: s(j.partNumber, 60),
+    // "WIX Oil Filter" with brand WIX is an "Oil Filter".
+    name: brand && name.toLowerCase().startsWith(brand.toLowerCase() + " ") ? name.slice(brand.length + 1) : name,
+    kind: j.kind === "fluid" ? "fluid" : "part",
+    quantity: n(j.quantity, 100_000),
+    unit: unit && /^(qt|gal|l|oz|ml)$/i.test(unit) ? (unit.toLowerCase() === "l" ? "L" : unit.toLowerCase()) : null,
+    priceCents: price === null ? null : Math.round(price * 100),
+  };
+}
+
+/**
+ * Asks Gemini to open a product page and read it, for stores that won't let NitroLog read their pages. Google's
+ * own fetcher opens the page, so a store that blocks Google stays blocked. Returns null when it can't read it.
+ */
+export async function readLinkWithAi(url: string): Promise<LinkRead | null> {
+  const key = apiKey();
+  if (!key) return null;
+  const prompt = `Open the product page at ${url} and answer with only a JSON object, no other text:
+{"store": the shop's name, "name": the product's short name, "brand": the maker or null, "partNumber": the manufacturer part number, model number or SKU, or null, "price": the current price as a plain number or null, "currency": like "USD" or null, "kind": "fluid" for oil, coolant and other fluids, otherwise "part", "quantity": how many come in it if it's a multi-pack, or a fluid's volume, otherwise null, "unit": for fluids "qt", "gal", "L" or "oz", otherwise null}
+Use only what that page shows. Don't guess from the address. If you couldn't open the page or it isn't one product, answer {"error": "could not open"}.`;
+  const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ url_context: {} }], generationConfig: { temperature: 0, maxOutputTokens: 1024 } });
+  for (const m of [model(), FALLBACK_MODEL]) {
+    let res: Response;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key.key }, body, signal: AbortSignal.timeout(40_000),
+      });
+    } catch { continue; }
+    if (res.status === 503 || res.status === 500) { console.warn(`[gemini] ${m} busy reading a link`); continue; }
+    if (!res.ok) { console.warn(`[gemini] link read answered ${res.status}`); return null; }
+    type Cand = { content?: { parts?: { text?: string; thought?: boolean }[] }; urlContextMetadata?: { urlMetadata?: { urlRetrievalStatus?: string }[] } };
+    const c = ((await res.json()) as { candidates?: Cand[] }).candidates?.[0];
+    const text = (c?.content?.parts ?? []).filter(x => !x.thought).map(x => x.text ?? "").join("");
+    return cleanLinkRead(text, (c?.urlContextMetadata?.urlMetadata ?? []).map(x => x.urlRetrievalStatus ?? ""));
+  }
+  return null;
+}
+
 /** Checks the key and model by looking the model up, which doesn't use up any of the free allowance. */
 export async function testGeminiKey(): Promise<string> {
   const key = apiKey();
