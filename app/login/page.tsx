@@ -9,6 +9,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [sso, setSso] = useState(false);
+
+  useEffect(() => {
+    const ssoError = new URLSearchParams(window.location.search).get("sso_error");
+    if (ssoError) setError(ssoError);
+    fetch("/api/sso").then(r => r.json()).then(d => setSso(!!d?.enabled)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/setup").then(r => r.json()).then(d => {
@@ -48,6 +55,7 @@ export default function LoginPage() {
           <input id="password" name="password" type="password" className="form-input" autoComplete="current-password" required />
         </div>
         <button className="btn-primary btn-lg" disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
+        {sso && <a className="btn-secondary btn-lg sso-btn" href="/api/sso?start=1">Sign in with Amethyst</a>}
       </form>
     </AuthShell>
   );

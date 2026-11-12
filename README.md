@@ -58,6 +58,12 @@ Open **http://localhost:7100** and create the admin account.
 
 You can sign in over plain HTTP on your own network, or over HTTPS through a reverse proxy or tunnel. If you only ever use HTTPS, set `SESSION_COOKIE_SECURE=true` so the session cookie is never sent unencrypted.
 
+## Sign in with Amethyst (optional)
+
+If you run [Amethyst](https://github.com/RayderC/Amethyst), people can sign in here with their Amethyst account. In Amethyst, open **Dashboard → System** and turn on shared login. Then on this app's admin page, under **Sign in with Amethyst**, put in Amethyst's address and paste the shared secret. The login page gets a **Sign in with Amethyst** button.
+
+It signs in the account here with the same username as the Amethyst one, so create the accounts here first. Passwords keep working. You can also set `AMETHYST_URL` and `AMETHYST_SSO_SECRET` on the container instead.
+
 ## Portainer and Cloudflare Tunnel
 
 1. In Portainer, go to **Stacks → Add stack** and paste [docker-compose.yml](docker-compose.yml).

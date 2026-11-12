@@ -1836,3 +1836,4 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .paperwork-presets .chip.on { border-color: var(--accent-cyan); color: var(--accent-cyan); }
 .capacity-line { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--text-muted); margin: 0 0 10px; }
 .capacity-line b { color: var(--text); }
+.sso-btn { display: flex; justify-content: center; text-decoration: none; margin-top: 4px; }

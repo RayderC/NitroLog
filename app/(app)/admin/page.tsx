@@ -3,6 +3,7 @@
 import { useState } from "react";
 import BackupsCard from "@/app/components/BackupsCard";
 import EbaySetup from "@/app/components/EbaySetup";
+import SsoSetup from "@/app/components/SsoSetup";
 import UpdateNotice from "@/app/components/UpdateNotice";
 import GeminiSetup from "@/app/components/GeminiSetup";
 import Icon from "@/app/components/Icon";
@@ -111,6 +112,7 @@ export default function AdminPage() {
         <EbaySetup />
         <GeminiSetup />
       </div>
+      <SsoSetup appName="NitroLog" />
       <BackupsCard appName="NitroLog" what="the database and every photo and document" />
       {creating && <CreateUser onClose={() => setCreating(false)} onDone={() => { setCreating(false); reload(); }} />}
       {editingUser && <EditUser user={editingUser} self={editingUser.id === me.id} onClose={() => setEditingUser(null)} onDone={() => { setEditingUser(null); act(async () => {}); }} />}
