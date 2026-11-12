@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Icon from "@/app/components/Icon";
+import LinkPaste, { type LinkedPart } from "@/app/components/LinkPaste";
 import QuickForm, { type Field } from "@/app/components/QuickForm";
 import { api, parseNum, useApi } from "@/lib/client";
 import type { InventoryItem, Vehicle } from "@/lib/types";
@@ -27,6 +28,7 @@ export default function PartsPage() {
     { key: "unitCost", label: "Cost per unit", type: "number" },
     { key: "minQuantity", label: "Warn when at or below", type: "number" },
     { key: "location", label: "Where it's kept", placeholder: "Shelf 2, blue bin" },
+    { key: "url", label: "Store link", type: "url", placeholder: "https://…", hint: "Where you bought it, so you can find it again." },
     { key: "vehicleId", label: "For vehicle", type: "select", options: [{ value: "", label: "Any vehicle" }, ...(vehicles ?? []).map(v => ({ value: String(v.id), label: v.soldOn ? `${v.name} (sold)` : v.name }))] },
     { key: "notes", label: "Notes", type: "textarea" },
   ];
@@ -40,7 +42,7 @@ export default function PartsPage() {
 
   async function save(x: Record<string, string>) {
     const body = {
-      name: x.name, partNumber: x.partNumber, brand: x.brand, unit: x.unit, location: x.location, notes: x.notes,
+      name: x.name, partNumber: x.partNumber, brand: x.brand, unit: x.unit, location: x.location, notes: x.notes, url: x.url,
       vehicleId: x.vehicleId || null,
       quantity: number(x.quantity, "On hand"),
       minQuantity: number(x.minQuantity, "Warn when at or below"),
@@ -53,6 +55,23 @@ export default function PartsPage() {
   }
 
   const item = editing !== "new" ? editing : null;
+
+  /**
+   * A pasted link fills the form. A pack of 12 is 12 on hand, and a 5 qt jug is 5 qt, so the price is split per unit.
+   * A quantity already typed is kept.
+   */
+  function fromLink(fill: (v: Record<string, string>) => void) {
+    return (l: LinkedPart, paidCents: number | null) => {
+      const cents = paidCents ?? l.priceCents;
+      const qty = l.quantity && l.quantity > 0 ? l.quantity : 1;
+      fill({
+        name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "", url: l.url,
+        ...(l.kind === "fluid" ? { unit: l.unit ?? "qt" } : {}),
+        ...(cents !== null ? { unitCost: (cents / qty / 100).toFixed(2) } : {}),
+        ...(editing === "new" ? { quantity: String(qty) } : {}),
+      });
+    };
+  }
 
   return (
     <div className="page">
@@ -84,6 +103,7 @@ export default function PartsPage() {
                   {i.unitCostCents > 0 && <span>{fmtMoney(i.unitCostCents, currency)} each</span>}
                   {i.location && <span>{i.location}</span>}
                   {i.vehicleName && <span>For {i.vehicleName}</span>}
+                  {i.url && <span><Icon name="link" size={12} /> Link saved</span>}
                 </div>
               </button>
             ))}
@@ -93,10 +113,11 @@ export default function PartsPage() {
       )}
       {editing && (
         <QuickForm title={item ? `Edit ${item.name}` : "Add part"} fields={fields} onClose={() => setEditing(null)} onSave={save}
+          top={fill => <LinkPaste onPart={fromLink(fill)} currency={currency} label="Fill in from a store link" />}
           initial={{
             name: item?.name ?? "", partNumber: item?.partNumber ?? "", brand: item?.brand ?? "", quantity: item ? String(item.quantity) : "",
             unit: item?.unit ?? "", unitCost: item?.unitCostCents ? (item.unitCostCents / 100).toFixed(2) : "", minQuantity: item?.minQuantity?.toString() ?? "",
-            location: item?.location ?? "", vehicleId: item?.vehicleId?.toString() ?? "", notes: item?.notes ?? "",
+            location: item?.location ?? "", vehicleId: item?.vehicleId?.toString() ?? "", notes: item?.notes ?? "", url: item?.url ?? "",
           }}
           onDelete={item ? async () => { await api(`/api/inventory/${item.id}`, { method: "DELETE" }); setEditing(null); reload(); } : undefined}
           deleteConfirm="Delete this part? Service records that used it keep their details." />

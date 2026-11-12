@@ -5,7 +5,7 @@ import { listVehicles, requireVehicle } from "./vehicles";
 
 type ItemRow = {
   kind: ServiceItem["kind"]; name: string; part_number: string | null; brand: string | null; quantity: number | null; unit: string | null;
-  cost_cents: number; date: string; vehicle_id: number; vehicle_name: string;
+  cost_cents: number; date: string; vehicle_id: number; vehicle_name: string; url: string | null;
 };
 
 /** A part's identity for de-duplicating: the same name, number and brand is the same part. */
@@ -28,7 +28,7 @@ export function partsHistory(userId: number, vehicleId: number): PartsHistory {
   const ids = listVehicles(userId).map(v => v.id);
   const place = ids.map(() => "?").join(",");
 
-  const rows = db.prepare(`SELECT i.kind, i.name, i.part_number, i.brand, i.quantity, i.unit, i.cost_cents, s.date, s.vehicle_id, v.name AS vehicle_name
+  const rows = db.prepare(`SELECT i.kind, i.name, i.part_number, i.brand, i.quantity, i.unit, i.cost_cents, i.url, s.date, s.vehicle_id, v.name AS vehicle_name
     FROM service_items i JOIN service_records s ON s.id = i.service_id JOIN vehicles v ON v.id = s.vehicle_id
     WHERE s.vehicle_id IN (${place}) ORDER BY s.date DESC, s.id DESC, i.id`).all(...ids) as ItemRow[];
 
@@ -41,19 +41,20 @@ export function partsHistory(userId: number, vehicleId: number): PartsHistory {
       hit.uses++;
       if (r.vehicle_id === vehicleId) hit.onThisVehicle = true;
       if (hit.unitCostCents === null) hit.unitCostCents = unitCost(r.cost_cents, r.quantity);
+      if (hit.url === null) hit.url = r.url;
       continue;
     }
     byKey.set(k, {
       source: "history", kind: r.kind, name: r.name, partNumber: r.part_number, brand: r.brand, unit: r.unit,
       quantity: r.quantity, unitCostCents: unitCost(r.cost_cents, r.quantity), lastDate: r.date, uses: 1,
-      onThisVehicle: r.vehicle_id === vehicleId, vehicleName: r.vehicle_name, inventoryId: null, onHand: null,
+      onThisVehicle: r.vehicle_id === vehicleId, vehicleName: r.vehicle_name, inventoryId: null, onHand: null, url: r.url,
     });
   }
 
   const stock: PartSuggestion[] = listInventory(userId).map(s => ({
     source: "stock", kind: "part", name: s.name, partNumber: s.partNumber, brand: s.brand, unit: s.unit, quantity: 1,
     unitCostCents: s.unitCostCents || null, lastDate: null, uses: 0, onThisVehicle: s.vehicleId === vehicleId,
-    vehicleName: s.vehicleName, inventoryId: s.id, onHand: s.quantity,
+    vehicleName: s.vehicleName, inventoryId: s.id, onHand: s.quantity, url: s.url,
   }));
 
   // The newest record on this vehicle for each schedule item that listed any parts.
@@ -61,14 +62,14 @@ export function partsHistory(userId: number, vehicleId: number): PartsHistory {
     JOIN service_records s ON s.id = t.service_id
     WHERE s.vehicle_id = ? AND EXISTS (SELECT 1 FROM service_items i WHERE i.service_id = s.id)
     ORDER BY s.date DESC, s.id DESC`).all(vehicleId) as { schedule_id: number; service_id: number; date: string }[];
-  const items = db.prepare("SELECT kind, name, part_number, brand, quantity, unit, cost_cents FROM service_items WHERE service_id = ? ORDER BY id");
+  const items = db.prepare("SELECT kind, name, part_number, brand, quantity, unit, cost_cents, url FROM service_items WHERE service_id = ? ORDER BY id");
   const lastByTask: PartsHistory["lastByTask"] = {};
   for (const l of last) {
     if (lastByTask[l.schedule_id]) continue;
     lastByTask[l.schedule_id] = {
       serviceId: l.service_id, date: l.date,
-      items: (items.all(l.service_id) as { kind: ServiceItem["kind"]; name: string; part_number: string | null; brand: string | null; quantity: number | null; unit: string | null; cost_cents: number }[])
-        .map(i => ({ kind: i.kind, name: i.name, partNumber: i.part_number, brand: i.brand, quantity: i.quantity, unit: i.unit, costCents: i.cost_cents, inventoryId: null })),
+      items: (items.all(l.service_id) as { kind: ServiceItem["kind"]; name: string; part_number: string | null; brand: string | null; quantity: number | null; unit: string | null; cost_cents: number; url: string | null }[])
+        .map(i => ({ kind: i.kind, name: i.name, partNumber: i.part_number, brand: i.brand, quantity: i.quantity, unit: i.unit, costCents: i.cost_cents, inventoryId: null, url: i.url })),
     };
   }
 

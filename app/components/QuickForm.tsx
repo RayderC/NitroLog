@@ -14,8 +14,10 @@ export type Field = {
 };
 
 /** A modal form for simple records. `onSave` and `onDelete` throw to show an error in the form. */
-export default function QuickForm({ title, fields, initial, onClose, onSave, onDelete, deleteConfirm }: {
+export default function QuickForm({ title, fields, initial, onClose, onSave, onDelete, deleteConfirm, top }: {
   title: string;
+  /** Shown above the fields. It gets a setter that fills fields in, such as from a pasted store link. */
+  top?: (fill: (values: Record<string, string>) => void) => React.ReactNode;
   fields: Field[];
   initial: Record<string, string>;
   onClose: () => void;
@@ -46,6 +48,7 @@ export default function QuickForm({ title, fields, initial, onClose, onSave, onD
     <Modal title={title} onClose={onClose} footer={footer}>
       <div className="form-stack">
         {err && <p className="form-error">{err}</p>}
+        {top?.(values => setV(cur => ({ ...cur, ...values })))}
         {fields.map((f, i) => {
           const id = `qf-${f.key}`;
           const set = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setV({ ...v, [f.key]: e.target.value });
@@ -61,6 +64,9 @@ export default function QuickForm({ title, fields, initial, onClose, onSave, onD
               ) : (
                 <input id={id} className="form-input" autoFocus={i === 0} type={f.type === "date" ? "date" : f.type === "url" ? "url" : "text"}
                   inputMode={f.type === "number" ? "decimal" : undefined} value={v[f.key] ?? ""} placeholder={f.placeholder} onChange={set} />
+              )}
+              {f.type === "url" && /^https?:\/\//i.test(v[f.key] ?? "") && (
+                <a className="form-hint qf-open" href={v[f.key]} target="_blank" rel="noopener noreferrer">Open this link</a>
               )}
               {f.hint && <p className="form-hint">{f.hint}</p>}
             </div>

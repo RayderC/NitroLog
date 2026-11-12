@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { bad, cents, day, int, notFound, numOrNull, requiredText, text } from "../api";
+import { bad, cents, day, int, notFound, numOrNull, requiredText, text, webLink } from "../api";
 import { SERVICE_CATEGORIES, type ServiceDetail, type ServiceItem, type ServiceSummary } from "../types";
 import { assertInventoryUsable } from "./inventory";
 import { requireVehicle } from "./vehicles";
@@ -33,13 +33,13 @@ function vehicleOf(id: number): number {
 export function getService(userId: number, id: number): ServiceDetail {
   requireVehicle(userId, vehicleOf(id), "view");
   const row = db.prepare(`${SELECT} WHERE s.id = ?`).get(id) as Row;
-  const items = db.prepare("SELECT kind, name, part_number, brand, quantity, unit, cost_cents, inventory_id FROM service_items WHERE service_id = ? ORDER BY id").all(id) as {
-    kind: ServiceItem["kind"]; name: string; part_number: string | null; brand: string | null; quantity: number | null; unit: string | null; cost_cents: number; inventory_id: number | null;
+  const items = db.prepare("SELECT kind, name, part_number, brand, quantity, unit, cost_cents, inventory_id, url FROM service_items WHERE service_id = ? ORDER BY id").all(id) as {
+    kind: ServiceItem["kind"]; name: string; part_number: string | null; brand: string | null; quantity: number | null; unit: string | null; cost_cents: number; inventory_id: number | null; url: string | null;
   }[];
   const tasks = db.prepare("SELECT schedule_id FROM service_tasks WHERE service_id = ?").all(id) as { schedule_id: number }[];
   return {
     ...toSummary(row),
-    items: items.map(i => ({ kind: i.kind, name: i.name, partNumber: i.part_number, brand: i.brand, quantity: i.quantity, unit: i.unit, costCents: i.cost_cents, inventoryId: i.inventory_id })),
+    items: items.map(i => ({ kind: i.kind, name: i.name, partNumber: i.part_number, brand: i.brand, quantity: i.quantity, unit: i.unit, costCents: i.cost_cents, inventoryId: i.inventory_id, url: i.url })),
     scheduleIds: tasks.map(t => t.schedule_id),
   };
 }
@@ -67,6 +67,7 @@ function parse(b: any) {
       unit: text(i?.unit, 20),
       cost_cents: cents(i?.costCents),
       inventory_id: i?.inventoryId === null || i?.inventoryId === undefined || i?.inventoryId === "" ? null : int(i.inventoryId, "inventory item"),
+      url: webLink(i?.url, "Store link"),
     })),
     scheduleIds: (Array.isArray(b.scheduleIds) ? b.scheduleIds : []).map((x: unknown) => int(x, "schedule item")) as number[],
   };
@@ -77,8 +78,8 @@ function writeChildren(userId: number, serviceId: number, vehicleId: number, p: 
   for (const i of p.items) if (i.inventory_id !== null) assertInventoryUsable(userId, i.inventory_id, serviceId);
   db.prepare("DELETE FROM service_items WHERE service_id = ?").run(serviceId);
   db.prepare("DELETE FROM service_tasks WHERE service_id = ?").run(serviceId);
-  const addItem = db.prepare(`INSERT INTO service_items (service_id, kind, name, part_number, brand, quantity, unit, cost_cents, inventory_id)
-    VALUES (@service_id, @kind, @name, @part_number, @brand, @quantity, @unit, @cost_cents, @inventory_id)`);
+  const addItem = db.prepare(`INSERT INTO service_items (service_id, kind, name, part_number, brand, quantity, unit, cost_cents, inventory_id, url)
+    VALUES (@service_id, @kind, @name, @part_number, @brand, @quantity, @unit, @cost_cents, @inventory_id, @url)`);
   for (const i of p.items) addItem.run({ ...i, service_id: serviceId });
   const belongs = db.prepare("SELECT 1 FROM schedule_items WHERE id = ? AND vehicle_id = ?");
   const addTask = db.prepare("INSERT OR IGNORE INTO service_tasks (service_id, schedule_id) VALUES (?, ?)");

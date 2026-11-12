@@ -64,6 +64,8 @@ export type ServiceItem = {
   unit: string | null;
   costCents: number;
   inventoryId: number | null;
+  /** The store page it was bought from. */
+  url: string | null;
 };
 
 export type ServiceSummary = {
@@ -100,6 +102,8 @@ export type PartSuggestion = {
   vehicleName: string | null;
   inventoryId: number | null;
   onHand: number | null;
+  /** The newest store link saved for this part. */
+  url: string | null;
 };
 
 export type PartsHistory = {
@@ -147,6 +151,8 @@ export type InventoryItem = {
   unitCostCents: number;
   minQuantity: number | null;
   notes: string | null;
+  /** The store page it was bought from. */
+  url: string | null;
 };
 
 export const ATTACHMENT_CATEGORIES = ["photo", "receipt", "insurance", "registration", "manual", "other"] as const;

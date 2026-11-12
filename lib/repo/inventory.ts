@@ -1,11 +1,11 @@
 import { db } from "../db";
-import { bad, cents, int, notFound, numOrNull, requiredText, text } from "../api";
+import { bad, cents, int, notFound, numOrNull, requiredText, text, webLink } from "../api";
 import type { InventoryItem } from "../types";
 import { requireVehicle } from "./vehicles";
 
 type Row = {
   id: number; vehicle_id: number | null; vehicle_name: string | null; name: string; part_number: string | null; brand: string | null;
-  stock_in: number; used: number; unit: string | null; location: string | null; unit_cost_cents: number; min_quantity: number | null; notes: string | null;
+  stock_in: number; used: number; unit: string | null; location: string | null; unit_cost_cents: number; min_quantity: number | null; notes: string | null; url: string | null;
 };
 
 /**
@@ -19,7 +19,7 @@ const SELECT = `SELECT i.*, v.name AS vehicle_name,
 const toItem = (r: Row): InventoryItem => ({
   id: r.id, vehicleId: r.vehicle_id, vehicleName: r.vehicle_name, name: r.name, partNumber: r.part_number, brand: r.brand,
   quantity: Math.round((r.stock_in - r.used) * 1000) / 1000, unit: r.unit, location: r.location, unitCostCents: r.unit_cost_cents,
-  minQuantity: r.min_quantity, notes: r.notes,
+  minQuantity: r.min_quantity, notes: r.notes, url: r.url,
 });
 
 /** Inventory belongs to the person whose shelf it's on, even when it's earmarked for a shared vehicle. */
@@ -52,14 +52,15 @@ function parse(userId: number, b: any) {
       unit_cost_cents: cents(b.unitCostCents),
       min_quantity: numOrNull(b.minQuantity, "minimum", 1e6),
       notes: text(b.notes, 2000),
+      url: webLink(b.url, "Store link"),
     },
   };
 }
 
 export function createInventory(userId: number, b: any): number {
   const p = parse(userId, b);
-  const info = db.prepare(`INSERT INTO inventory_items (owner_id, vehicle_id, name, part_number, brand, stock_in, unit, location, unit_cost_cents, min_quantity, notes)
-    VALUES (@owner, @vehicle_id, @name, @part_number, @brand, @stock_in, @unit, @location, @unit_cost_cents, @min_quantity, @notes)`)
+  const info = db.prepare(`INSERT INTO inventory_items (owner_id, vehicle_id, name, part_number, brand, stock_in, unit, location, unit_cost_cents, min_quantity, notes, url)
+    VALUES (@owner, @vehicle_id, @name, @part_number, @brand, @stock_in, @unit, @location, @unit_cost_cents, @min_quantity, @notes, @url)`)
     .run({ ...p.row, owner: userId, stock_in: p.quantity });
   return Number(info.lastInsertRowid);
 }
@@ -73,7 +74,7 @@ export function updateInventory(userId: number, id: number, b: any) {
   const p = parse(userId, b);
   // The form edits what's on hand now, so stock_in has to include everything already used.
   db.prepare(`UPDATE inventory_items SET vehicle_id=@vehicle_id, name=@name, part_number=@part_number, brand=@brand, stock_in=@stock_in,
-    unit=@unit, location=@location, unit_cost_cents=@unit_cost_cents, min_quantity=@min_quantity, notes=@notes WHERE id=@id`)
+    unit=@unit, location=@location, unit_cost_cents=@unit_cost_cents, min_quantity=@min_quantity, notes=@notes, url=@url WHERE id=@id`)
     .run({ ...p.row, id, stock_in: p.quantity + usedCount(id) });
 }
 

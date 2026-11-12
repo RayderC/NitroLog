@@ -106,6 +106,16 @@ export function text(v: unknown, max = 200): string | null {
   return t === "" ? null : t;
 }
 
+/** A web address, or null when empty. Only http and https, because stored links render as hrefs and a javascript: one would run. */
+export function webLink(v: unknown, name = "Link"): string | null {
+  const t = text(v, 2000);
+  if (!t) return null;
+  let u: URL;
+  try { u = new URL(t); } catch { throw bad(`${name} needs to start with http:// or https://`); }
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw bad(`${name} needs to start with http:// or https://`);
+  return u.toString();
+}
+
 export function requiredText(v: unknown, name: string, max = 200): string {
   const t = text(v, max);
   if (!t) throw bad(`${name} is required`);

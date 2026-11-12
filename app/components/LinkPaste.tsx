@@ -11,7 +11,7 @@ export type LinkedPart = {
 };
 
 /** Paste a store link and type what you paid: the part goes in with its name, brand, part number and price. */
-export default function LinkPaste({ onPart, currency }: { onPart: (p: LinkedPart, paidCents: number | null) => void; currency: string }) {
+export default function LinkPaste({ onPart, currency, label = "Add from a store link" }: { onPart: (p: LinkedPart, paidCents: number | null) => void; currency: string; label?: string }) {
   const [url, setUrl] = useState("");
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,7 +41,7 @@ export default function LinkPaste({ onPart, currency }: { onPart: (p: LinkedPart
   return (
     // Not a <form>: this sits inside the service form, and forms can't be nested.
     <div className="link-paste">
-      <label className="form-label" htmlFor="part-link">Add from a store link</label>
+      <label className="form-label" htmlFor="part-link">{label}</label>
       <div className="link-paste-row">
         <input id="part-link" className="form-input" inputMode="url" autoComplete="off" placeholder="Paste an Amazon, AutoZone or O'Reilly link"
           value={url} onChange={e => setUrl(e.target.value)} onKeyDown={enter} />

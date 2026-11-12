@@ -269,3 +269,9 @@ export const SCHEMA_V5 = `
 ALTER TABLE vehicles ADD COLUMN sold_on TEXT;
 ALTER TABLE vehicles ADD COLUMN sold_cents INTEGER;
 `;
+
+/** Where a part was bought, so it can be opened again later. */
+export const SCHEMA_V6 = `
+ALTER TABLE service_items ADD COLUMN url TEXT;
+ALTER TABLE inventory_items ADD COLUMN url TEXT;
+`;

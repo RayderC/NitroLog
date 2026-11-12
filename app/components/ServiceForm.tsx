@@ -15,9 +15,12 @@ import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type Parts
 import { fmtMoney, meterUnit, readingFromInput, readingToInput, toCents } from "@/lib/units";
 
 /** `unitCents` is the price of one, kept so the line total follows the quantity until someone types their own total. */
-type PartRow = { kind: "part" | "fluid"; name: string; partNumber: string; brand: string; quantity: string; unit: string; cost: string; inventoryId: number | null; unitCents: number | null };
+type PartRow = { kind: "part" | "fluid"; name: string; partNumber: string; brand: string; quantity: string; unit: string; cost: string; inventoryId: number | null; unitCents: number | null; url: string };
 
-const blankPart = (kind: PartRow["kind"]): PartRow => ({ kind, name: "", partNumber: "", brand: "", quantity: "1", unit: kind === "fluid" ? "qt" : "", cost: "", inventoryId: null, unitCents: null });
+const blankPart = (kind: PartRow["kind"]): PartRow => ({ kind, name: "", partNumber: "", brand: "", quantity: "1", unit: kind === "fluid" ? "qt" : "", cost: "", inventoryId: null, unitCents: null, url: "" });
+
+/** Only http and https links are shown as links. The server checks the same when saving. */
+const safeLink = (s: string | null | undefined) => (s && /^https?:\/\//i.test(s) ? s : "");
 
 const UNITS = ["ea", "qt", "L", "gal", "oz", "ml", "pair", "set", "ft"];
 
@@ -29,7 +32,7 @@ function rowFromItem(i: ServiceItem): PartRow {
   const unitCents = i.costCents ? Math.round(i.costCents / (i.quantity && i.quantity > 0 ? i.quantity : 1)) : null;
   return {
     kind: i.kind, name: i.name, partNumber: i.partNumber ?? "", brand: i.brand ?? "", quantity: i.quantity?.toString() ?? "1",
-    unit: i.unit ?? "", cost: i.costCents ? (i.costCents / 100).toFixed(2) : "", inventoryId: null, unitCents,
+    unit: i.unit ?? "", cost: i.costCents ? (i.costCents / 100).toFixed(2) : "", inventoryId: null, unitCents, url: i.url ?? "",
   };
 }
 
@@ -62,6 +65,7 @@ function rowFromSent(raw: string): { row: PartRow; store: string } | null {
       unitCents: t.kind === "fluid" ? null : paid,
       cost: paid !== null ? (paid / 100).toFixed(2) : "",
       inventoryId: null,
+      url: safeLink(text(d.u, 2000)),
     },
   };
 }
@@ -161,7 +165,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     const quantity = cur.quantity.trim() && cur.quantity.trim() !== "1" ? cur.quantity : String(s.quantity ?? 1);
     updatePart(i, {
       name: s.name, partNumber: s.partNumber ?? "", brand: s.brand ?? "", unit: s.unit ?? cur.unit, quantity,
-      inventoryId: s.inventoryId, unitCents: s.unitCostCents,
+      inventoryId: s.inventoryId, unitCents: s.unitCostCents, url: cur.url || (s.url ?? ""),
     });
   }
 
@@ -170,7 +174,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     if (!s) return;
     setParts([...parts, {
       kind: "part", name: s.name, partNumber: s.partNumber ?? "", brand: s.brand ?? "", quantity: "1", unit: s.unit ?? "",
-      cost: s.unitCostCents ? (s.unitCostCents / 100).toFixed(2) : "", inventoryId: s.id, unitCents: s.unitCostCents || null,
+      cost: s.unitCostCents ? (s.unitCostCents / 100).toFixed(2) : "", inventoryId: s.id, unitCents: s.unitCostCents || null, url: s.url ?? "",
     }]);
   }
 
@@ -195,6 +199,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
       // A fluid's quantity is the size of the jug, not how many you bought, so it has no price per unit.
       unitCents: cents !== null && l.kind !== "fluid" ? Math.round(cents / qty) : null,
       cost: cents !== null ? (cents / 100).toFixed(2) : "",
+      url: l.url,
     };
     const empty = parts.findIndex(x => !x.name.trim() && !x.partNumber.trim());
     setParts(empty >= 0 ? parts.map((x, i) => (i === empty ? { ...row, kind: x.kind, unit: x.unit } : x)) : [...parts, row]);
@@ -227,7 +232,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
         laborCostCents: toCents(checkedNumber(laborCost, "Labor cost") ?? 0),
         scheduleIds: tasks,
         items: parts.map(p => ({
-          kind: p.kind, name: p.name, partNumber: p.partNumber, brand: p.brand, unit: p.unit, inventoryId: p.inventoryId,
+          kind: p.kind, name: p.name, partNumber: p.partNumber, brand: p.brand, unit: p.unit, inventoryId: p.inventoryId, url: p.url || null,
           quantity: checkedNumber(p.quantity, `Quantity for ${p.name || "a part"}`),
           costCents: toCents(checkedNumber(p.cost, `Cost for ${p.name || "a part"}`) ?? 0),
         })),
@@ -357,6 +362,12 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
                     </div>
                     {p.unitCents !== null && parseNum(p.quantity) !== null && parseNum(p.quantity) !== 1 && (
                       <p className="form-hint">{fmtMoney(p.unitCents, currency)} each</p>
+                    )}
+                    {safeLink(p.url) && (
+                      <div className="part-link">
+                        <a href={safeLink(p.url)} target="_blank" rel="noopener noreferrer"><Icon name="link" size={13} /> Open store page</a>
+                        {!readOnly && <button type="button" className="link-btn" onClick={() => updatePart(i, { url: "" })}>Remove link</button>}
+                      </div>
                     )}
                     {!readOnly && vehicle && <PriceCheck part={p} vehicle={vehicle} onUse={c => updatePart(i, { unitCents: c })} />}
                   </div>
