@@ -12,7 +12,7 @@ Self-hosted maintenance tracker for cars, motorcycles, powersports, and project 
 
 - **What's due**: overdue and upcoming service across every vehicle, by distance, engine hours or time, whichever comes first.
 - **Service records**: date, reading, parts and fluids with part numbers and costs, labor hours and cost, and notes.
-- **Quick part entry**: typing a part suggests ones you've used before and ones on your shelf, with what you paid. Ticking a schedule item offers last time's parts in one tap. Or paste an Amazon, AutoZone or O'Reilly product link with the price you paid, and it adds the part with its name, brand and part number.
+- **Quick part entry**: typing a part suggests ones you've used before and ones on your shelf, with what you paid. Ticking a schedule item offers last time's parts in one tap. Or paste an Amazon, AutoZone or O'Reilly product link, and it adds the part with its name, brand and part number. Amazon links bring the price too, or type what you paid beside the link.
 - **Send to NitroLog**: a bookmark (set up under Settings) that you tap on any store's product page. It reads that page in your own browser, price included, and opens a new service record with the part filled in.
 - **Part prices** (optional): current eBay prices for a part, matched to your vehicle where eBay knows the fit, plus quick searches on RockAuto, AutoZone, Amazon and Google Shopping.
 - **Schedules**: editable starter schedules for cars, motorcycles, powersports and track cars. Logging a service resets the items it covers.

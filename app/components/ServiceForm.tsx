@@ -186,13 +186,15 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
 
   /** A part read from a store link, with the price typed beside it, goes into an empty line if there is one. */
   function addFromLink(l: LinkedPart, paidCents: number | null) {
-    const qty = l.kind === "fluid" && l.quantity ? l.quantity : 1;
+    const qty = l.quantity && l.quantity > 0 ? l.quantity : 1;
+    // The price typed beside the link wins over the store's price. Either is the line's total.
+    const cents = paidCents ?? l.priceCents;
     const row: PartRow = {
       ...blankPart(l.kind), name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "",
       quantity: String(qty), unit: l.kind === "fluid" ? (l.unit ?? "qt") : "",
-      // What you paid is the line's total. A fluid's quantity is the size of the jug, not how many you bought.
-      unitCents: paidCents !== null && l.kind !== "fluid" ? paidCents : null,
-      cost: paidCents !== null ? (paidCents / 100).toFixed(2) : "",
+      // A fluid's quantity is the size of the jug, not how many you bought, so it has no price per unit.
+      unitCents: cents !== null && l.kind !== "fluid" ? Math.round(cents / qty) : null,
+      cost: cents !== null ? (cents / 100).toFixed(2) : "",
     };
     const empty = parts.findIndex(x => !x.name.trim() && !x.partNumber.trim());
     setParts(empty >= 0 ? parts.map((x, i) => (i === empty ? { ...row, kind: x.kind, unit: x.unit } : x)) : [...parts, row]);

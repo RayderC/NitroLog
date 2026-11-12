@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import { api, parseNum } from "@/lib/client";
-import { toCents } from "@/lib/units";
+import { fmtMoney, toCents } from "@/lib/units";
 
 export type LinkedPart = {
   store: string; kind: "part" | "fluid"; name: string; brand: string | null; partNumber: string | null; priceCents: number | null;
@@ -29,7 +29,9 @@ export default function LinkPaste({ onPart, currency }: { onPart: (p: LinkedPart
       const check = p.from === "title" || p.store !== "Amazon" ? "Check the details" : "Amazon didn't describe that page, so check the name";
       setMsg({ ok: true, text: !p.named
         ? `Added. That ${p.store} link doesn't name the product, so type the name.`
-        : paid === null ? `Added from ${p.store}. ${check}, and type what you paid in its Total box.` : `Added from ${p.store}. ${check}.` });
+        : paid !== null ? `Added from ${p.store} at the price you typed. ${check}.`
+        : p.priceCents !== null ? `Added from ${p.store} at ${fmtMoney(p.priceCents, currency)}, its price there today. ${check}.`
+        : `Added from ${p.store}. ${check}, and type what you paid in its Total box.` });
     } catch (x) { setMsg({ ok: false, text: (x as Error).message }); }
     finally { setBusy(false); }
   }
@@ -44,7 +46,7 @@ export default function LinkPaste({ onPart, currency }: { onPart: (p: LinkedPart
         <input id="part-link" className="form-input" inputMode="url" autoComplete="off" placeholder="Paste an Amazon, AutoZone or O'Reilly link"
           value={url} onChange={e => setUrl(e.target.value)} onKeyDown={enter} />
         <input className="form-input link-paste-price" inputMode="decimal" autoComplete="off" aria-label={`Price you paid in ${currency}`}
-          placeholder="Price paid" value={price} onChange={e => setPrice(e.target.value)} onKeyDown={enter} />
+          placeholder="Price paid" title="Leave empty to use the store's price" value={price} onChange={e => setPrice(e.target.value)} onKeyDown={enter} />
         <button type="button" className="btn-secondary" disabled={busy || !url.trim()} onClick={go}>
           <Icon name="plus" size={14} /> {busy ? "Reading…" : "Add"}
         </button>

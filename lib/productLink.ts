@@ -1,10 +1,9 @@
 // Fills in a part from a store link you paste. AutoZone and O'Reilly links spell out the product, so those are
 // read from the link alone (both stores refuse apps). For Amazon, NitroLog asks for that one page, saying who
-// it is, and uses the title Amazon serves it. It never poses as a browser: if Amazon says no, it falls back to
-// the words in the link. Prices aren't in what Amazon serves apps, so they're typed, or come from the
-// "Send to NitroLog" button, which reads the page you're looking at in your own browser.
+// it is, and Amazon serves it the product page: title, brand, part number and price. It never poses as a
+// browser: if Amazon says no, it falls back to the words in the link, and the price is typed.
 import { HttpError, bad } from "./api";
-import { BRANDS, parseProductTitle } from "./partText";
+import { BRANDS, parseProductTitle, priceToCents } from "./partText";
 
 export type LinkedPart = {
   store: "Amazon" | "AutoZone" | "O'Reilly";
@@ -12,7 +11,7 @@ export type LinkedPart = {
   name: string;
   brand: string | null;
   partNumber: string | null;
-  /** Always null: store pages aren't read. Kept so the form can take a price if a source ever offers one. */
+  /** The price on the page Amazon served, in cents. Null for AutoZone and O'Reilly, which don't serve pages. */
   priceCents: number | null;
   quantity: number | null;
   unit: string | null;
@@ -142,19 +141,52 @@ async function expandShortLink(start: URL): Promise<URL> {
   return url;
 }
 
-/** Says who's asking. Amazon serves this a light page with the product's full title. */
+/** Says who's asking. Amazon serves this the product page. */
 const AGENT = "NitroLog/1.0 (personal vehicle maintenance log; reads one product page a person pasted)";
 
+/** What Amazon's product page says about the item. */
+export type AmazonPage = { title: string; priceCents: number | null; brand: string | null; partNumber: string | null; count: number | null };
+
+/** The first thing matched by `re` inside the `span` characters after `marker`, or null. */
+function near(html: string, marker: string, re: RegExp, span = 8000): string | null {
+  const at = html.indexOf(marker);
+  if (at < 0) return null;
+  return html.slice(at, at + span).match(re)?.[1] ?? null;
+}
+
 /**
- * The product's title from the page Amazon serves NitroLog, or null when Amazon doesn't describe it.
- * Follows redirects by hand so every hop stays on Amazon, and reads only the start of the page.
+ * Reads the product page Amazon serves NitroLog: title, price, brand, part number and pack size.
+ * Amazon's pages are about 2 MB, so the whole page is read, up to a cap. Only Amazon addresses are followed.
  */
-async function amazonTitle(start: URL): Promise<string | null> {
+export function readAmazonPage(html: string): AmazonPage | null {
+  const title = html.match(/<meta name="title" content="([^"]{4,600})"/)?.[1] ?? html.match(/id="productTitle"[^>]*>\s*([^<]{4,600})</)?.[1];
+  if (!title) return null;
+  // The price shown by the buy box. Each is the "a-offscreen" copy Amazon writes out for screen readers.
+  const price = near(html, 'id="corePrice_feature_div"', /class="a-offscreen">([^<]{1,30})</)
+    ?? near(html, 'id="corePriceDisplay_desktop_feature_div"', /class="a-offscreen">([^<]{1,30})</)
+    ?? near(html, 'id="corePrice_desktop"', /class="a-offscreen">([^<]{1,30})</)
+    ?? near(html, 'id="apex_desktop"', /class="a-offscreen">([^<]{1,30})</);
+  const brand = html.match(/>Brand<\/span>\s*<\/td>\s*<td[^>]*>\s*<span[^>]*>([^<]{1,80})</)?.[1]
+    ?? html.match(/<a id="bylineInfo"[^>]*>([^<]{1,100})</)?.[1]?.replace(/^Visit the\s+/i, "").replace(/\s+Store$/i, "").replace(/^Brand:\s*/i, "");
+  const partNumber = html.match(/Manufacturer\s*Part\s*Number\s*<\/th>\s*<td[^>]*>\s*([^<]{1,60}?)\s*</i)?.[1]
+    ?? html.match(/Item model number\s*<\/th>\s*<td[^>]*>\s*([^<]{1,60}?)\s*</i)?.[1];
+  const count = html.match(/Unit Count\s*<\/th>\s*<td[^>]*>\s*(\d{1,4})\s*Count/i)?.[1];
+  return {
+    title: decode(title),
+    priceCents: price ? priceToCents(decode(price)) : null,
+    brand: brand ? decode(brand).slice(0, 80) : null,
+    partNumber: partNumber ? decode(partNumber).slice(0, 60) : null,
+    count: count ? Number(count) : null,
+  };
+}
+
+/** Fetches one Amazon product page as NitroLog and reads it. Null when Amazon won't serve it. */
+async function amazonPage(start: URL): Promise<AmazonPage | null> {
   let url = start;
   for (let hop = 0; hop < 4; hop++) {
     let res: Response;
     try {
-      res = await fetch(url, { redirect: "manual", headers: { "User-Agent": AGENT, Accept: "text/html" }, signal: AbortSignal.timeout(10_000) });
+      res = await fetch(url, { redirect: "manual", headers: { "User-Agent": AGENT, Accept: "text/html" }, signal: AbortSignal.timeout(15_000) });
     } catch { return null; }
     if (res.status >= 300 && res.status < 400) {
       res.body?.cancel().catch(() => {});
@@ -166,20 +198,16 @@ async function amazonTitle(start: URL): Promise<string | null> {
       continue;
     }
     if (!res.ok || !res.body) { res.body?.cancel().catch(() => {}); return null; }
-    // The title is near the top. Stop reading after the first megabyte.
     const reader = res.body.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;
-    while (size < 1_000_000) {
+    while (size < 4_000_000) {
       const { done, value } = await reader.read();
       if (done) break;
       chunks.push(value); size += value.length;
-      const sofar = Buffer.concat(chunks).toString("utf8");
-      const m = sofar.match(/<meta name="title" content="([^"]{4,600})"/) ?? sofar.match(/id="productTitle"[^>]*>\s*([^<]{4,600})</);
-      if (m) { reader.cancel().catch(() => {}); return decode(m[1]); }
     }
     reader.cancel().catch(() => {});
-    return null;
+    return readAmazonPage(Buffer.concat(chunks).toString("utf8"));
   }
   return null;
 }
@@ -199,10 +227,12 @@ export async function partFromLink(raw: unknown): Promise<LinkedPart> {
   if (store === "Amazon" && SHORT.test(u.hostname.toLowerCase())) u = await expandShortLink(u);
   const clean = `${u.origin}${u.pathname}`;
   if (store === "Amazon") {
-    const title = await amazonTitle(new URL(clean));
-    if (title) {
-      const t = parseProductTitle(title);
-      return { store, ...t, priceCents: null, named: true, from: "title", url: clean };
+    const page = await amazonPage(new URL(clean));
+    if (page) {
+      const t = parseProductTitle(page.title, page.brand);
+      // A "Pack of 12" is 12 parts at the pack's price. A fluid's size comes from its title.
+      const quantity = t.kind === "part" && page.count && page.count > 1 ? page.count : t.quantity;
+      return { store, ...t, partNumber: page.partNumber ?? t.partNumber, quantity, priceCents: page.priceCents, named: true, from: "title", url: clean };
     }
   }
   const part = store === "AutoZone" ? fromAutoZone(u) : store === "O'Reilly" ? fromOReilly(u) : fromAmazon(u);
