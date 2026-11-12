@@ -126,9 +126,11 @@ function readTar(file: string, onFile: (name: string, start: number, size: numbe
     while (pos + 512 <= total) {
       fs.readSync(fd, h, 0, 512, pos);
       if (h.every(b => b === 0)) break;
-      const name = h.toString("utf8", 0, 100).replace(/\0.*$/s, "");
-      const prefix = h.toString("utf8", 345, 500).replace(/\0.*$/s, "");
-      const size = parseInt(h.toString("ascii", 124, 136).replace(/\0.*$/s, "").trim() || "0", 8);
+      // Each field ends at its first zero byte.
+      const field = (enc: BufferEncoding, a: number, b: number) => h.toString(enc, a, b).split("\0")[0];
+      const name = field("utf8", 0, 100);
+      const prefix = field("utf8", 345, 500);
+      const size = parseInt(field("ascii", 124, 136).trim() || "0", 8);
       const type = String.fromCharCode(h[156] || 48);
       if (isNaN(size) || pos + 512 + size > total) throw new Error("That backup file is cut short or damaged.");
       if (type === "0") onFile(prefix ? `${prefix}/${name}` : name, pos + 512, size);
