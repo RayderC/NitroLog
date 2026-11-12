@@ -54,3 +54,20 @@ export function originFrom(get: (name: string) => string | string[] | null | und
   const host = first(get("x-forwarded-host")) || first(get("host"));
   return `${proto === "https" ? "https" : "http"}://${host}`;
 }
+
+/**
+ * Amethyst's address as typed into the admin page or AMETHYST_URL: "rayder.xyz", "https://rayder.xyz/",
+ * "http://192.168.1.5:3000/dashboard" all work. No scheme means https. Returns just the origin, or null.
+ */
+export function amethystOrigin(input: unknown): string | null {
+  let s = typeof input === "string" ? input.trim() : "";
+  if (!s || s.length > 500) return null;
+  if (s.startsWith("//")) s = `https:${s}`;
+  else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = `https://${s}`;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname || u.username || u.password) return null;
+    return u.origin;
+  } catch { return null; }
+}

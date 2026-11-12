@@ -36,8 +36,8 @@ export default function SsoSetup({ appName }: { appName: string }) {
       )}
       {!data.fromEnv && (
         <div className="form-stack" style={{ marginTop: 10 }}>
-          <input className="form-input" aria-label="Amethyst address" placeholder={data.url ?? "Amethyst's address, like http://192.168.1.5:3000"} value={url} onChange={e => setUrl(e.target.value)} />
-          <input className="form-input" aria-label="Shared secret" placeholder="Shared secret" type="password" autoComplete="off" value={secret} onChange={e => setSecret(e.target.value)} />
+          <input data-bwignore="true" data-1p-ignore="true" data-lpignore="true" autoComplete="off" className="form-input" aria-label="Amethyst address" placeholder={data.url ?? "Amethyst's address, like rayder.xyz or http://192.168.1.5:3000"} value={url} onChange={e => setUrl(e.target.value)} />
+          <input data-bwignore="true" data-1p-ignore="true" data-lpignore="true" className="form-input" aria-label="Shared secret" placeholder="Shared secret" type="password" autoComplete="off" value={secret} onChange={e => setSecret(e.target.value)} />
           <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
             <button type="button" className="btn-primary btn-sm" disabled={!secret || !(url || data.url)} onClick={() => save({ url: url || data.url, secret }, "Saved. The login page now has the button.")}>Save</button>
             {data.enabled && <button type="button" className="btn-secondary btn-sm" onClick={() => save({ off: true }, "Turned off.")}>Turn off</button>}

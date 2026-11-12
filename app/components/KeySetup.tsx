@@ -60,7 +60,7 @@ export default function KeySetup({ title, description, guideTitle, steps, fields
           {fields.map(f => (
             <div key={f.id} className="form-group">
               <label className="form-label" htmlFor={`key-${f.id}`}>{f.label}</label>
-              <input id={`key-${f.id}`} type="password" className="form-input key-input" autoComplete="off" spellCheck={false}
+              <input data-bwignore="true" data-1p-ignore="true" data-lpignore="true" id={`key-${f.id}`} type="password" className="form-input key-input" autoComplete="off" spellCheck={false}
                 placeholder={status?.configured && status.hint ? `Saved, ending ${status.hint}. Paste a new one to replace it.` : f.placeholder}
                 value={values[f.id] ?? ""} onChange={e => setValues({ ...values, [f.id]: e.target.value })} />
             </div>
