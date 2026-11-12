@@ -36,8 +36,11 @@ const describe = (p: LinkedPart, currency: string) =>
  * Paste a link to a product, or read a screenshot or receipt: the part goes in with its name, brand, part number
  * and price. With `pickOne`, a picture with several parts asks which one; otherwise every part is added.
  */
-export default function LinkPaste({ onPart, currency, label = "Add from a link or screenshot", pickOne = false }: {
-  onPart: (p: LinkedPart, paidCents: number | null) => void; currency: string; label?: string; pickOne?: boolean;
+export default function LinkPaste({ onPart, onPicture, currency, label = "Add from a link or screenshot", pickOne = false }: {
+  onPart: (p: LinkedPart, paidCents: number | null) => void;
+  /** Gets the original picture after parts were read from it, to keep as a receipt. */
+  onPicture?: (file: File) => void;
+  currency: string; label?: string; pickOne?: boolean;
 }) {
   const { me } = useMe();
   const { data: readers } = useApi<{ photos: boolean; ebay: boolean }>("/api/parts/readers");
@@ -81,6 +84,7 @@ export default function LinkPaste({ onPart, currency, label = "Add from a link o
       const parts = (data.parts ?? []) as LinkedPart[];
       if (!parts.length) return setMsg({ ok: false, text: "No parts found in that picture. Try a closer screenshot of the product or the order." });
       const from = data.store ? ` from ${data.store}` : "";
+      onPicture?.(f);
       if (pickOne && parts.length > 1) {
         setChoices(parts);
         return setMsg({ ok: true, text: `Found ${parts.length} parts${from}. Which one is this?` });

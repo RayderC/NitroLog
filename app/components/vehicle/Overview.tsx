@@ -7,6 +7,7 @@ import { useMe } from "@/app/components/MeContext";
 import ReadingModal from "@/app/components/ReadingModal";
 import SoldModal from "@/app/components/SoldModal";
 import VehicleForm from "@/app/components/VehicleForm";
+import RecallsCard from "@/app/components/vehicle/RecallsCard";
 import { api, fmtDate } from "@/lib/client";
 import { KINDS } from "@/lib/templates";
 import type { ReadingEntry, Vehicle } from "@/lib/types";
@@ -48,6 +49,7 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
         </div>
         {canEdit && !v.soldOn && <button className="btn-secondary btn-sm" onClick={() => setUpdating(true)}>Update</button>}
       </div>
+      {!v.soldOn && <RecallsCard vehicle={v} />}
 
       <div className="card section">
         <div className="card-header"><div className="card-title">Details</div>{canEdit && <button className="btn-secondary btn-sm" onClick={() => setEditing(true)}><Icon name="edit" size={14} /> Edit</button>}</div>

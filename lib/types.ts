@@ -82,7 +82,9 @@ export type ServiceSummary = {
   loggedBy: string | null;
 };
 
-export type ServiceDetail = ServiceSummary & { items: ServiceItem[]; scheduleIds: number[] };
+/** An upgrade record's entry in the build log, with the power it made before and after. */
+export type ServiceBuild = { add: boolean; powerBefore: number | null; powerAfter: number | null; powerUnit: "whp" | "hp" | null; note: string | null };
+export type ServiceDetail = ServiceSummary & { items: ServiceItem[]; scheduleIds: number[]; build: ServiceBuild | null };
 
 /** A part the service form can fill in: one you've used before, or one on your shelf. */
 export type PartSuggestion = {
@@ -196,7 +198,14 @@ export type WishlistItem = {
   id: number; stageId: number | null; name: string; url: string | null; plannedCents: number;
   actualCents: number | null; status: "planned" | "bought" | "installed"; notes: string | null;
 };
-export type BuildLogEntry = { id: number; date: string; title: string; body: string | null; by: string | null };
+export type BuildLogEntry = {
+  id: number; date: string; title: string; body: string | null; by: string | null;
+  /** Set when the entry came from an Upgrade service record. */
+  serviceId: number | null;
+  /** The parts on that record. */
+  parts: string[];
+  powerBefore: number | null; powerAfter: number | null; powerUnit: "whp" | "hp" | null;
+};
 export type BuildData = {
   stages: BuildStage[];
   wishlist: WishlistItem[];
@@ -209,6 +218,10 @@ export type BuildData = {
     hours: number;
     tasksDone: number;
     tasksTotal: number;
+    /** The earliest power figure before a mod, and the latest after one. */
+    powerStart: number | null;
+    powerNow: number | null;
+    powerUnit: "whp" | "hp" | null;
   };
 };
 
@@ -226,3 +239,28 @@ export type TrackDay = {
   id: number; date: string; track: string; conditions: string | null; setup: string | null; notes: string | null; sessions: TrackSession[];
 };
 export type TrackBest = { track: string; bestLapMs: number | null; visits: number };
+
+export type Recall = {
+  campaign: string;
+  component: string | null;
+  summary: string | null;
+  consequence: string | null;
+  remedy: string | null;
+  reported: string | null;
+  /** NHTSA says not to drive it until it's repaired. */
+  parkIt: boolean;
+  status: "open" | "done" | "dismissed";
+};
+
+export type PriceWatch = {
+  id: number;
+  url: string;
+  name: string;
+  enabled: boolean;
+  startCents: number | null;
+  lastCents: number | null;
+  lowCents: number | null;
+  checkedAt: string | null;
+  /** Why the last check couldn't read a price. */
+  problem: string | null;
+};

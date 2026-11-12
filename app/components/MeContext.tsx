@@ -9,6 +9,8 @@ export type Me = {
   isAdmin: boolean;
   distanceUnit: DistanceUnit;
   volumeUnit: VolumeUnit;
+  priceAlerts: boolean;
+  recallAlerts: boolean;
 };
 
 export const MeContext = createContext<{ me: Me; reloadMe: () => void } | null>(null);

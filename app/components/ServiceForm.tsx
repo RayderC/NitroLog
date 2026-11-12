@@ -9,9 +9,10 @@ import { useMe } from "@/app/components/MeContext";
 import LinkPaste, { type LinkedPart } from "@/app/components/LinkPaste";
 import PartNameInput from "@/app/components/PartNameInput";
 import PriceCheck from "@/app/components/PriceCheck";
+import WatchButton from "@/app/components/WatchButton";
 import { api, fmtDate, localDay, parseNum, useApi } from "@/lib/client";
 import { parseProductTitle, priceToCents } from "@/lib/partText";
-import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type PartsHistory, type ScheduleItem, type ServiceDetail, type ServiceItem, type Vehicle } from "@/lib/types";
+import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type PartsHistory, type PriceWatch, type ScheduleItem, type ServiceDetail, type ServiceItem, type Vehicle } from "@/lib/types";
 import { fmtMoney, meterUnit, readingFromInput, readingToInput, toCents } from "@/lib/units";
 
 /** `unitCents` is the price of one, kept so the line total follows the quantity until someone types their own total. */
@@ -96,6 +97,16 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
   const { data: history } = useApi<PartsHistory>(vehicleId ? `/api/vehicles/${vehicleId}/parts-history` : null);
   const [usedLastTime, setUsedLastTime] = useState<number[]>([]);
   const [sentNote, setSentNote] = useState("");
+  const { data: watches, reload: reloadWatches } = useApi<PriceWatch[]>("/api/price-watches");
+  // Pictures read for parts, kept as receipts on the record when it's saved.
+  const [pictures, setPictures] = useState<File[]>([]);
+  const [keepPictures, setKeepPictures] = useState(true);
+  // An Upgrade record also goes in the build log, with power before and after.
+  const [buildAdd, setBuildAdd] = useState(true);
+  const [powerBefore, setPowerBefore] = useState("");
+  const [powerAfter, setPowerAfter] = useState("");
+  const [powerUnit, setPowerUnit] = useState<"whp" | "hp">("whp");
+  const [buildNote, setBuildNote] = useState("");
 
   // Copy an existing record into the form once, after both it and its vehicle have loaded.
   useEffect(() => {
@@ -107,6 +118,12 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     setReading(existing.reading === null ? "" : String(readingToInput(existing.reading, v.meterType, me.distanceUnit)));
     setTitle(existing.title);
     setCategory(existing.category);
+    // An older upgrade record without a build log entry stays without one unless it's ticked.
+    setBuildAdd(!!existing.build);
+    setPowerBefore(existing.build?.powerBefore?.toString() ?? "");
+    setPowerAfter(existing.build?.powerAfter?.toString() ?? "");
+    setPowerUnit(existing.build?.powerUnit ?? "whp");
+    setBuildNote(existing.build?.note ?? "");
     setLaborHours(existing.laborHours?.toString() ?? "");
     setLaborCost(existing.laborCostCents ? (existing.laborCostCents / 100).toFixed(2) : "");
     setNotes(existing.notes ?? "");
@@ -234,14 +251,35 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
         laborHours: checkedNumber(laborHours, "Labor hours"),
         laborCostCents: toCents(checkedNumber(laborCost, "Labor cost") ?? 0),
         scheduleIds: tasks,
+        build: category === "upgrade" && buildAdd ? {
+          add: true, powerUnit, note: buildNote,
+          powerBefore: checkedNumber(powerBefore, "Power before"), powerAfter: checkedNumber(powerAfter, "Power after"),
+        } : null,
         items: parts.map(p => ({
           kind: p.kind, name: p.name, partNumber: p.partNumber, brand: p.brand, unit: p.unit, inventoryId: p.inventoryId, url: p.url || null,
           quantity: checkedNumber(p.quantity, `Quantity for ${p.name || "a part"}`),
           costCents: toCents(checkedNumber(p.cost, `Cost for ${p.name || "a part"}`) ?? 0),
         })),
       };
+      let id = serviceId;
       if (serviceId) await api(`/api/service/${serviceId}`, { method: "PATCH", body });
-      else await api(`/api/vehicles/${vehicle.id}/service`, { body });
+      else id = (await api<{ id: number }>(`/api/vehicles/${vehicle.id}/service`, { body })).id;
+      // The record is saved, so a picture that won't upload is reported but doesn't undo it.
+      if (keepPictures && id) {
+        for (const pic of pictures) {
+          const form = new FormData();
+          form.append("file", pic, pic.name || "receipt.jpg");
+          form.append("category", "receipt");
+          form.append("serviceId", String(id));
+          const res = await fetch(`/api/vehicles/${vehicle.id}/attachments`, { method: "POST", body: form });
+          if (!res.ok) {
+            const m = (await res.json().catch(() => ({})))?.message ?? res.status;
+            setErr(`Saved, but the receipt picture didn't upload (${m}). Open the record to add it.`);
+            setSaving(false);
+            return;
+          }
+        }
+      }
       router.push(`/vehicles/${vehicle.id}?tab=service`);
     } catch (x) {
       setErr((x as Error).message);
@@ -320,9 +358,29 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
             <div className="form-group">
               <label className="form-label" htmlFor="sv-cat">Category</label>
               <select id="sv-cat" className="form-select capitalize" value={category} onChange={e => setCategory(e.target.value)}>
-                {SERVICE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {SERVICE_CATEGORIES.map(c => <option key={c} value={c}>{c === "upgrade" ? "upgrade / mod" : c}</option>)}
               </select>
             </div>
+            {category === "upgrade" && (
+              <div className="build-box">
+                <label className="check-row"><input type="checkbox" checked={buildAdd} onChange={e => setBuildAdd(e.target.checked)} /> Add to the build log</label>
+                {buildAdd && (
+                  <>
+                    <div className="power-row">
+                      <label className="part-num"><span>Power before</span><input className="form-input" inputMode="decimal" aria-label="Power before" placeholder="e.g. 420" value={powerBefore} onChange={e => setPowerBefore(e.target.value)} /></label>
+                      <label className="part-num"><span>Power after</span><input className="form-input" inputMode="decimal" aria-label="Power after" placeholder="e.g. 485" value={powerAfter} onChange={e => setPowerAfter(e.target.value)} /></label>
+                      <label className="part-num"><span>Measured as</span>
+                        <select className="form-select" aria-label="Power measured as" value={powerUnit} onChange={e => setPowerUnit(e.target.value as "whp" | "hp")}>
+                          <option value="whp">whp (dyno)</option><option value="hp">hp (crank)</option>
+                        </select>
+                      </label>
+                    </div>
+                    <textarea className="form-textarea" rows={3} aria-label="Build note" placeholder="How it went, the tune, before and after notes" value={buildNote} onChange={e => setBuildNote(e.target.value)} />
+                    <p className="form-hint">Power is optional. The Build tab shows where the car started and where it is now.</p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <section className="section">
@@ -370,6 +428,8 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
                       <div className="part-link">
                         <a href={safeLink(p.url)} target="_blank" rel="noopener noreferrer"><Icon name="link" size={13} /> Open store page</a>
                         {!readOnly && <button type="button" className="link-btn" onClick={() => updatePart(i, { url: "" })}>Remove link</button>}
+                        <WatchButton url={safeLink(p.url)} name={[p.brand, p.name].filter(Boolean).join(" ")} watches={watches} onChange={reloadWatches}
+                          priceCents={p.unitCents ?? (p.cost.trim() && parseNum(p.quantity) === 1 ? money(p.cost) || null : null)} />
                       </div>
                     )}
                     {!readOnly && vehicle && <PriceCheck part={p} vehicle={vehicle} onUse={c => updatePart(i, { unitCents: c })} />}
@@ -383,7 +443,13 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
                 <button type="button" className="add-set-btn" onClick={() => setParts([...parts, blankPart("fluid")])}><Icon name="plus" size={14} /> Fluid</button>
               </div>
             )}
-            {!readOnly && <LinkPaste onPart={addFromLink} currency={currency} />}
+            {!readOnly && <LinkPaste onPart={addFromLink} currency={currency} onPicture={f => setPictures(ps => [...ps, f])} />}
+            {!readOnly && pictures.length > 0 && (
+              <label className="check-row keep-pictures">
+                <input type="checkbox" checked={keepPictures} onChange={e => setKeepPictures(e.target.checked)} />
+                Save {pictures.length === 1 ? "the picture" : `the ${pictures.length} pictures`} to this record as {pictures.length === 1 ? "a receipt" : "receipts"}
+              </label>
+            )}
             {!readOnly && !!inventory?.length && (
               <select className="form-select stock-picker" aria-label="Add a part from your inventory" value="" onChange={e => addFromStock(Number(e.target.value))}>
                 <option value="">Use a part from your inventory…</option>

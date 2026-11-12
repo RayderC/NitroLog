@@ -52,7 +52,7 @@ export const subscriptionCount = (userId: number) =>
 type Sub = { id: number; endpoint: string; p256dh: string; auth: string };
 
 /** Sends to every device the user has. Returns how many accepted it, and removes devices that have gone away. */
-export async function sendToUser(userId: number, message: { title: string; body: string }): Promise<number> {
+export async function sendToUser(userId: number, message: { title: string; body: string; url?: string }): Promise<number> {
   const subs = db.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?").all(userId) as Sub[];
   if (subs.length === 0) return 0;
   const keys = vapidKeys();
@@ -62,7 +62,7 @@ export async function sendToUser(userId: number, message: { title: string; body:
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-        JSON.stringify({ ...message, url: "/" }),
+        JSON.stringify({ ...message, url: message.url ?? "/" }),
         { TTL: 24 * 60 * 60, timeout: 15_000, vapidDetails: { subject: contact, publicKey: keys.publicKey, privateKey: keys.privateKey } },
       );
       delivered++;
@@ -101,7 +101,14 @@ export function startPushScheduler() {
   const g = globalThis as unknown as { __nitrologPush?: boolean };
   if (g.__nitrologPush) return;
   g.__nitrologPush = true;
-  const run = () => runPushCheck().catch(e => console.error("[push] check failed", e));
+  const run = async () => {
+    await runPushCheck().catch(e => console.error("[push] check failed", e));
+    // Recalls and price drops have their own pacing, so most passes do little or nothing.
+    const { runRecallCheck } = await import("./recalls");
+    await runRecallCheck(sendToUser).catch(e => console.error("[recalls] check failed", e));
+    const { runPriceCheck } = await import("./priceWatch");
+    await runPriceCheck(sendToUser).catch(e => console.error("[prices] check failed", e));
+  };
   setTimeout(run, 60_000).unref();
   setInterval(run, HOUR).unref();
 }

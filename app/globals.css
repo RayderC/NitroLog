@@ -1776,3 +1776,19 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .link-paste-photo { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
 .photo-choices { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 8px; }
 .photo-choices .btn-secondary { text-align: left; white-space: normal; justify-content: flex-start; }
+
+/* ── Recalls ── */
+.recall-card.urgent { border-color: var(--danger-border); }
+.recall-head { all: unset; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; }
+.recall-body { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-secondary, var(--text)); line-height: 1.5; }
+.recall-none { font-size: 13px; }
+
+/* ── Upgrade records in the build log; receipts ── */
+.build-box { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius-sm); border: 1px dashed rgba(168, 85, 247, 0.35); }
+.power-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px; }
+.keep-pictures { margin-top: 8px; font-size: 13px; }
+.alert-switch { align-items: flex-start; margin: 10px 0; }
+.alert-switch input { margin-top: 3px; }
+.watch-list { margin-top: 10px; }
+.watch-row.off { opacity: 0.6; }
+.power-badge { font-weight: 700; color: var(--accent-cyan); }

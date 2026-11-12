@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { bad, cents, day, int, notFound, numOrNull, requiredText, text, webLink } from "../api";
-import { SERVICE_CATEGORIES, type ServiceDetail, type ServiceItem, type ServiceSummary } from "../types";
+import { SERVICE_CATEGORIES, type ServiceBuild, type ServiceDetail, type ServiceItem, type ServiceSummary } from "../types";
 import { assertInventoryUsable } from "./inventory";
 import { requireVehicle } from "./vehicles";
 
@@ -37,11 +37,42 @@ export function getService(userId: number, id: number): ServiceDetail {
     kind: ServiceItem["kind"]; name: string; part_number: string | null; brand: string | null; quantity: number | null; unit: string | null; cost_cents: number; inventory_id: number | null; url: string | null;
   }[];
   const tasks = db.prepare("SELECT schedule_id FROM service_tasks WHERE service_id = ?").all(id) as { schedule_id: number }[];
+  const log = db.prepare("SELECT body, power_before, power_after, power_unit FROM build_log WHERE service_id = ? ORDER BY id LIMIT 1").get(id) as
+    { body: string | null; power_before: number | null; power_after: number | null; power_unit: "whp" | "hp" | null } | undefined;
   return {
     ...toSummary(row),
     items: items.map(i => ({ kind: i.kind, name: i.name, partNumber: i.part_number, brand: i.brand, quantity: i.quantity, unit: i.unit, costCents: i.cost_cents, inventoryId: i.inventory_id, url: i.url })),
     scheduleIds: tasks.map(t => t.schedule_id),
+    build: log ? { add: true, powerBefore: log.power_before, powerAfter: log.power_after, powerUnit: log.power_unit, note: log.body } : null,
   };
+}
+
+/** What the form says about the build log. Undefined means an older client that doesn't know about it, so leave it alone. */
+function parseBuild(b: any): ServiceBuild | null | undefined {
+  if (b === undefined) return undefined;
+  if (!b || !b.add) return null;
+  const unit = b.powerUnit === "hp" ? "hp" : "whp";
+  return {
+    add: true, powerBefore: numOrNull(b.powerBefore, "power before", 10_000), powerAfter: numOrNull(b.powerAfter, "power after", 10_000),
+    powerUnit: unit, note: text(b.note, 20000),
+  };
+}
+
+/**
+ * Keeps an Upgrade record's build log entry in step with it: made or updated while it's an upgrade with
+ * "add to the build log" ticked, and removed otherwise. Photos on a removed entry stay under Documents.
+ */
+function syncBuildLog(userId: number, serviceId: number, vehicleId: number, record: { date: string; title: string; category: string }, build: ServiceBuild | null | undefined) {
+  if (build === undefined) return;
+  const existing = db.prepare("SELECT id FROM build_log WHERE service_id = ?").get(serviceId) as { id: number } | undefined;
+  if (!build || record.category !== "upgrade") {
+    if (existing) db.prepare("DELETE FROM build_log WHERE id = ?").run(existing.id);
+    return;
+  }
+  const row = { date: record.date, title: record.title, body: build.note, power_before: build.powerBefore, power_after: build.powerAfter, power_unit: build.powerUnit };
+  if (existing) db.prepare("UPDATE build_log SET date=@date, title=@title, body=@body, power_before=@power_before, power_after=@power_after, power_unit=@power_unit WHERE id=@id").run({ ...row, id: existing.id });
+  else db.prepare(`INSERT INTO build_log (vehicle_id, date, title, body, created_by, service_id, power_before, power_after, power_unit)
+    VALUES (@vehicle_id, @date, @title, @body, @created_by, @service_id, @power_before, @power_after, @power_unit)`).run({ ...row, vehicle_id: vehicleId, created_by: userId, service_id: serviceId });
 }
 
 function parse(b: any) {
@@ -70,6 +101,7 @@ function parse(b: any) {
       url: webLink(i?.url, "Store link"),
     })),
     scheduleIds: (Array.isArray(b.scheduleIds) ? b.scheduleIds : []).map((x: unknown) => int(x, "schedule item")) as number[],
+    build: parseBuild(b.build),
   };
 }
 
@@ -99,6 +131,7 @@ export function createService(userId: number, vehicleId: number, b: any): number
       .run({ ...p.record, vehicle_id: vehicleId, created_by: userId });
     const id = Number(info.lastInsertRowid);
     writeChildren(userId, id, vehicleId, p);
+    syncBuildLog(userId, id, vehicleId, p.record, p.build);
     return id;
   })();
 }
@@ -111,6 +144,7 @@ export function updateService(userId: number, id: number, b: any) {
     db.prepare(`UPDATE service_records SET date=@date, reading=@reading, title=@title, category=@category, labor_hours=@labor_hours,
       labor_cost_cents=@labor_cost_cents, notes=@notes WHERE id=@id`).run({ ...p.record, id });
     writeChildren(userId, id, vehicleId, p);
+    syncBuildLog(userId, id, vehicleId, p.record, p.build);
   })();
 }
 

@@ -4,8 +4,9 @@ import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import LinkPaste, { type LinkedPart } from "@/app/components/LinkPaste";
 import QuickForm, { type Field } from "@/app/components/QuickForm";
+import WatchButton from "@/app/components/WatchButton";
 import { api, parseNum, useApi } from "@/lib/client";
-import type { InventoryItem, Vehicle } from "@/lib/types";
+import type { InventoryItem, PriceWatch, Vehicle } from "@/lib/types";
 import { fmtMoney, toCents } from "@/lib/units";
 
 export default function PartsPage() {
@@ -13,6 +14,7 @@ export default function PartsPage() {
   const { data: vehicles } = useApi<Vehicle[]>("/api/vehicles");
   const [editing, setEditing] = useState<InventoryItem | "new" | null>(null);
   const [search, setSearch] = useState("");
+  const { data: watches, reload: reloadWatches } = useApi<PriceWatch[]>("/api/price-watches");
 
   const currency = vehicles?.[0]?.currency ?? "USD";
   const q = search.trim().toLowerCase();
@@ -115,7 +117,16 @@ export default function PartsPage() {
       )}
       {editing && (
         <QuickForm title={item ? `Edit ${item.name}` : "Add part"} fields={fields} onClose={() => setEditing(null)} onSave={save}
-          top={fill => <LinkPaste onPart={fromLink(fill)} currency={currency} label="Fill in from a link or screenshot" pickOne />}
+          top={fill => (
+            <>
+              <LinkPaste onPart={fromLink(fill)} currency={currency} label="Fill in from a link or screenshot" pickOne />
+              {item?.url && (
+                <div className="part-link">
+                  <WatchButton url={item.url} name={[item.brand, item.name].filter(Boolean).join(" ")} priceCents={item.unitCostCents || null} watches={watches} onChange={reloadWatches} />
+                </div>
+              )}
+            </>
+          )}
           initial={{
             name: item?.name ?? "", partNumber: item?.partNumber ?? "", brand: item?.brand ?? "", quantity: item ? String(item.quantity) : "",
             unit: item?.unit ?? "", unitCost: item?.unitCostCents ? (item.unitCostCents / 100).toFixed(2) : "", minQuantity: item?.minQuantity?.toString() ?? "",

@@ -275,3 +275,47 @@ export const SCHEMA_V6 = `
 ALTER TABLE service_items ADD COLUMN url TEXT;
 ALTER TABLE inventory_items ADD COLUMN url TEXT;
 `;
+
+/** Price-drop alerts, recall checks, and upgrade records in the build log. */
+export const SCHEMA_V7 = `
+ALTER TABLE users ADD COLUMN price_alerts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN recall_alerts INTEGER NOT NULL DEFAULT 1;
+
+CREATE TABLE price_watches (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  start_cents INTEGER,
+  last_cents INTEGER,
+  low_cents INTEGER,
+  alerted_cents INTEGER,
+  checked_at TEXT,
+  last_error TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE (user_id, url)
+);
+
+CREATE TABLE vehicle_recalls (
+  vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+  campaign TEXT NOT NULL,
+  component TEXT,
+  summary TEXT,
+  consequence TEXT,
+  remedy TEXT,
+  reported TEXT,
+  park_it INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','done','dismissed')),
+  notified INTEGER NOT NULL DEFAULT 0,
+  first_seen TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (vehicle_id, campaign)
+);
+ALTER TABLE vehicles ADD COLUMN recalls_checked_at TEXT;
+
+ALTER TABLE build_log ADD COLUMN service_id INTEGER REFERENCES service_records(id) ON DELETE SET NULL;
+ALTER TABLE build_log ADD COLUMN power_before REAL;
+ALTER TABLE build_log ADD COLUMN power_after REAL;
+ALTER TABLE build_log ADD COLUMN power_unit TEXT;
+CREATE INDEX build_log_service ON build_log(service_id);
+`;

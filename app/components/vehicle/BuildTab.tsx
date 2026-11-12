@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import AttachmentList from "@/app/components/AttachmentList";
 import Icon from "@/app/components/Icon";
@@ -24,6 +25,27 @@ function moneyCents(s: string, label: string): number | null {
 }
 
 const STATUS = { planned: "badge-purple", bought: "badge-cyan", installed: "badge-green" };
+
+const fmtPower = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+/** "420 → 485 whp (+65)", or whichever half is known. */
+function powerText(before: number | null, after: number | null, unit: string | null) {
+  const u = unit ?? "whp";
+  if (before !== null && after !== null) {
+    const d = after - before;
+    return `${fmtPower(before)} → ${fmtPower(after)} ${u} (${d >= 0 ? "+" : ""}${fmtPower(d)})`;
+  }
+  if (after !== null) return `${fmtPower(after)} ${u} after`;
+  if (before !== null) return `${fmtPower(before)} ${u} before`;
+  return null;
+}
+
+function optNum(s: string, label: string): number | null {
+  if (!s.trim()) return null;
+  const n = parseNum(s);
+  if (n === null) throw new Error(`${label} must be a number`);
+  return n;
+}
 
 export default function BuildTab({ vehicle: v }: { vehicle: Vehicle }) {
   const { data, error, reload } = useApi<BuildData>(`/api/vehicles/${v.id}/build`);
@@ -76,8 +98,14 @@ export default function BuildTab({ vehicle: v }: { vehicle: Vehicle }) {
         <div className="stat-card"><div className="stat-card-label">Wishlist planned</div><div className="stat-card-value sm">{money(t.plannedCents)}</div></div>
         <div className="stat-card"><div className="stat-card-label">Hours</div><div className="stat-card-value sm">{t.hours.toLocaleString()}</div></div>
         <div className="stat-card"><div className="stat-card-label">Tasks done</div><div className="stat-card-value sm">{t.tasksDone}<small> / {t.tasksTotal}</small></div></div>
+        {(t.powerStart !== null || t.powerNow !== null) && (
+          <div className="stat-card"><div className="stat-card-label">Power</div>
+            <div className="stat-card-value sm">{fmtPower(t.powerNow ?? t.powerStart!)}<small> {t.powerUnit ?? "whp"}</small></div>
+            {t.powerStart !== null && t.powerNow !== null && <div className="stat-card-sub">from {fmtPower(t.powerStart)}, {t.powerNow - t.powerStart >= 0 ? "+" : ""}{fmtPower(t.powerNow - t.powerStart)}</div>}
+          </div>
+        )}
       </div>
-      <p className="settings-hint section">Upgrade work is any service record in the Upgrade category. Log a part in the wishlist or on that record, not both, or it counts twice.</p>
+      <p className="settings-hint section">Upgrade work is any service record in the Upgrade / mod category, and those records show up in the build log below with their parts and power. Log a part in the wishlist or on that record, not both, or it counts twice.</p>
 
       <section className="section">
         <div className="section-header">
@@ -159,7 +187,10 @@ export default function BuildTab({ vehicle: v }: { vehicle: Vehicle }) {
                   {canEdit && <button className="icon-btn" aria-label={`Edit ${l.title}`} onClick={() => setEditing({ kind: "log", item: l })}><Icon name="edit" size={15} /></button>}
                 </span>
               </div>
+              {powerText(l.powerBefore, l.powerAfter, l.powerUnit) && <p className="power-badge">{powerText(l.powerBefore, l.powerAfter, l.powerUnit)}</p>}
+              {l.parts.length > 0 && <p className="row-sub">Parts: {l.parts.join(", ")}</p>}
               {l.body && <p className="row-body pre-wrap">{l.body}</p>}
+              {l.serviceId && <Link className="text-cyan row-sub" href={`/service/${l.serviceId}`}>Open the service record</Link>}
               <div className="log-files"><AttachmentList vehicleId={v.id} buildLogId={l.id} canEdit={canEdit} /></div>
             </article>
           ))}
@@ -200,9 +231,19 @@ export default function BuildTab({ vehicle: v }: { vehicle: Vehicle }) {
       )}
       {editing?.kind === "log" && (
         <QuickForm title={editing.item ? "Edit entry" : "Add log entry"} onClose={() => setEditing(null)}
-          fields={[{ key: "title", label: "Title", required: true }, { key: "date", label: "Date", type: "date", required: true }, { key: "body", label: "Writeup", type: "textarea" }]}
-          initial={{ title: editing.item?.title ?? "", date: editing.item?.date ?? localDay(), body: editing.item?.body ?? "" }}
-          onSave={x => save("log", editing.item?.id, x)}
+          fields={[
+            { key: "title", label: "Title", required: true }, { key: "date", label: "Date", type: "date", required: true }, { key: "body", label: "Writeup", type: "textarea" },
+            { key: "powerBefore", label: "Power before (optional)", type: "number" }, { key: "powerAfter", label: "Power after (optional)", type: "number" },
+            { key: "powerUnit", label: "Measured as", type: "select", options: [{ value: "whp", label: "whp (dyno)" }, { value: "hp", label: "hp (crank)" }] },
+          ]}
+          initial={{
+            title: editing.item?.title ?? "", date: editing.item?.date ?? localDay(), body: editing.item?.body ?? "",
+            powerBefore: editing.item?.powerBefore?.toString() ?? "", powerAfter: editing.item?.powerAfter?.toString() ?? "", powerUnit: editing.item?.powerUnit ?? "whp",
+          }}
+          onSave={x => save("log", editing.item?.id, {
+            title: x.title, date: x.date, body: x.body, powerUnit: x.powerUnit,
+            powerBefore: optNum(x.powerBefore, "Power before"), powerAfter: optNum(x.powerAfter, "Power after"),
+          })}
           onDelete={editing.item ? () => remove("log", editing.item!.id) : undefined}
           deleteConfirm="Delete this entry? Its photos stay under Documents." />
       )}

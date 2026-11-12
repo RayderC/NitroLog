@@ -191,6 +191,8 @@ r = await eve("POST", "/api/vehicles", { kind: "other", name: "Eve shared", toda
 const shared = r.data.id;
 await eve("POST", `/api/vehicles/${shared}/members`, { username: "bob", role: "viewer" });
 r = await admin("DELETE", `/api/admin/users/${eveId}`);
+check("a vehicle nobody else has needs a choice first", r.status === 400 && /Eve car/.test(r.data?.message), r.data);
+r = await admin("DELETE", `/api/admin/users/${eveId}`, { vehicles: { [eveCar]: "delete" } });
 check("admin deletes eve", r.status === 200, r.data);
 r = await bob("GET", `/api/vehicles/${shared}`);
 check("shared vehicle passes to the remaining member", r.status === 200 && r.data.vehicle.role === "owner", r.data);

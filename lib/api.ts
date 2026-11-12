@@ -12,6 +12,8 @@ export type UserRow = {
   disabled: number;
   token_version: number;
   distance_unit: "mi" | "km";
+  price_alerts: number;
+  recall_alerts: number;
   volume_unit: "gal" | "L";
   created_at: string;
 };

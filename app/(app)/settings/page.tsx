@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
+import AlertsCard from "@/app/components/AlertsCard";
 import PushCard from "@/app/components/PushCard";
 import SendButtonSetup from "@/app/components/SendButtonSetup";
 import { api, localDay } from "@/lib/client";
@@ -45,6 +46,7 @@ export default function SettingsPage() {
       </div>
 
       <PushCard />
+      <AlertsCard />
 
       <SendButtonSetup />
       <div className="card section">

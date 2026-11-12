@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6 } from "./schema";
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7 } from "./schema";
 
 export const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), "nitrolog.db");
 
@@ -22,6 +22,7 @@ const MIGRATIONS: ((db: Database.Database) => void)[] = [
   db => { db.exec(SCHEMA_V4); },
   db => { db.exec(SCHEMA_V5); },
   db => { db.exec(SCHEMA_V6); },
+  db => { db.exec(SCHEMA_V7); },
 ];
 
 function migrate(db: Database.Database) {

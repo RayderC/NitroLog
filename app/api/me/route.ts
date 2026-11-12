@@ -7,6 +7,8 @@ export const GET = route(({ user }) => ({
   isAdmin: !!user.is_admin,
   distanceUnit: user.distance_unit,
   volumeUnit: user.volume_unit,
+  priceAlerts: !!user.price_alerts,
+  recallAlerts: !!user.recall_alerts,
 }));
 
 export const PATCH = route(({ user, body }) => {
@@ -19,5 +21,7 @@ export const PATCH = route(({ user, body }) => {
     if (!["gal", "L"].includes(b.volumeUnit)) throw bad("Invalid unit");
     db.prepare("UPDATE users SET volume_unit = ? WHERE id = ?").run(b.volumeUnit, user.id);
   }
+  if (b.priceAlerts !== undefined) db.prepare("UPDATE users SET price_alerts = ? WHERE id = ?").run(b.priceAlerts ? 1 : 0, user.id);
+  if (b.recallAlerts !== undefined) db.prepare("UPDATE users SET recall_alerts = ? WHERE id = ?").run(b.recallAlerts ? 1 : 0, user.id);
   return { ok: true };
 });
