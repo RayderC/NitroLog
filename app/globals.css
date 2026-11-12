@@ -1792,3 +1792,30 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .watch-list { margin-top: 10px; }
 .watch-row.off { opacity: 0.6; }
 .power-badge { font-weight: 700; color: var(--accent-cyan); }
+
+/* ── Parts page: used before, filters, watch checkbox ── */
+.parts-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
+@media (max-width: 640px) { .parts-filters { grid-template-columns: 1fr 1fr; } }
+.parts-summary { font-size: 13px; color: var(--text-muted); margin: 4px 0 6px; }
+.parts-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.parts-toolbar .settings-hint { margin: 0; }
+.used-part .row-top { align-items: baseline; }
+.used-price { font-weight: 700; color: var(--text); white-space: nowrap; }
+.used-price small { font-weight: 400; color: var(--text-muted); font-size: 12px; }
+.used-vehicles { margin-top: 4px; }
+.used-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: 13px; }
+.used-actions a { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; font-weight: 600; }
+.used-actions .used-record { margin-left: auto; font-weight: 400; }
+.watch-wrap { display: inline-flex; flex-direction: column; gap: 4px; }
+.watch-check { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none; }
+.watch-check input { width: 16px; height: 16px; accent-color: var(--accent-cyan); }
+.watch-check.on { color: var(--accent-cyan); font-weight: 600; }
+.watch-prices { font-weight: 400; color: var(--text-muted); }
+.watch-prices b { color: var(--text); }
+
+/* ── Recalls, kept quiet ── */
+.recall-quiet { font-size: 13px; color: var(--text-muted); }
+.recall-quiet summary { cursor: pointer; list-style: revert; padding: 6px 0; }
+.recall-quiet-body { display: flex; flex-direction: column; gap: 12px; padding: 6px 0 4px 14px; border-left: 2px solid var(--border); margin-top: 6px; }
+.recall-item p { margin: 4px 0; line-height: 1.5; }
+.recall-item-head { display: flex; justify-content: space-between; gap: 10px; color: var(--text); }

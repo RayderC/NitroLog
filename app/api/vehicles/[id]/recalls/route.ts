@@ -1,6 +1,6 @@
 import { HttpError, int, route } from "@/lib/api";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { checkVehicleRecalls, listRecalls, recallsCheckedAt, setRecallStatus } from "@/lib/recalls";
+import { checkVehicleRecalls, hideAllRecalls, listRecalls, recallsCheckedAt, setRecallStatus } from "@/lib/recalls";
 import { requireVehicle } from "@/lib/repo/vehicles";
 
 type P = { id: string };
@@ -26,6 +26,7 @@ export const POST = route<P>(async ({ user, params }) => {
 /** Marks a recall done, or not for this car. Either hides it. */
 export const PATCH = route<P>(({ user, params, body }) => {
   const id = requireVehicle(user.id, int(params.id), "edit").id;
-  setRecallStatus(id, body?.campaign, body?.status);
+  if (body?.all === true) hideAllRecalls(id);
+  else setRecallStatus(id, body?.campaign, body?.status);
   return { recalls: listRecalls(id), checkedAt: recallsCheckedAt(id) };
 });

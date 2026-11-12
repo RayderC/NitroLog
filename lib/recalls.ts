@@ -73,6 +73,11 @@ export function listRecalls(vehicleId: number, includeClosed = false): Recall[] 
   return rows.map(r => ({ campaign: r.campaign, component: r.component, summary: r.summary, consequence: r.consequence, remedy: r.remedy, reported: r.reported, parkIt: !!r.park_it, status: r.status }));
 }
 
+/** Hides every open recall on a vehicle. A recall that comes out later still shows up. */
+export function hideAllRecalls(vehicleId: number) {
+  db.prepare("UPDATE vehicle_recalls SET status = 'dismissed' WHERE vehicle_id = ? AND status = 'open'").run(vehicleId);
+}
+
 export function setRecallStatus(vehicleId: number, campaign: unknown, status: unknown) {
   if (typeof campaign !== "string" || !STATUSES.includes(status as Recall["status"])) throw bad("Invalid recall");
   const info = db.prepare("UPDATE vehicle_recalls SET status = ? WHERE vehicle_id = ? AND campaign = ?").run(status, vehicleId, campaign);

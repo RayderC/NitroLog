@@ -319,3 +319,8 @@ ALTER TABLE build_log ADD COLUMN power_after REAL;
 ALTER TABLE build_log ADD COLUMN power_unit TEXT;
 CREATE INDEX build_log_service ON build_log(service_id);
 `;
+
+/** Recall alerts became opt-in. */
+export const SCHEMA_V8 = `
+UPDATE users SET recall_alerts = 0;
+`;

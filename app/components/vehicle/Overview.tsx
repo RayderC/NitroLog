@@ -49,7 +49,6 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
         </div>
         {canEdit && !v.soldOn && <button className="btn-secondary btn-sm" onClick={() => setUpdating(true)}>Update</button>}
       </div>
-      {!v.soldOn && <RecallsCard vehicle={v} />}
 
       <div className="card section">
         <div className="card-header"><div className="card-title">Details</div>{canEdit && <button className="btn-secondary btn-sm" onClick={() => setEditing(true)}><Icon name="edit" size={14} /> Edit</button>}</div>
@@ -107,6 +106,8 @@ export default function Overview({ vehicle: v, readings, reload, onDeleted }: {
           )}
         </div>
       )}
+
+      {!v.soldOn && <RecallsCard vehicle={v} />}
 
       {updating && <ReadingModal vehicle={v} onClose={() => setUpdating(false)} onDone={() => { setUpdating(false); reload(); }} />}
       {selling && <SoldModal vehicle={v} onClose={() => setSelling(false)} onDone={() => { setSelling(false); reload(); }} />}

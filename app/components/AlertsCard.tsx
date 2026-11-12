@@ -26,11 +26,11 @@ export default function AlertsCard() {
       {err && <p className="form-error">{err}</p>}
       <label className="check-row alert-switch">
         <input type="checkbox" checked={me.recallAlerts} onChange={e => setMe({ recallAlerts: e.target.checked })} />
-        <span><b>Safety recalls</b><br /><span className="form-hint">Once a week NitroLog checks NHTSA&apos;s recall list for your vehicles. You only hear about a recall the first time it shows up, and each vehicle&apos;s page lists the open ones.</span></span>
+        <span><b>New safety recalls</b><br /><span className="form-hint">Off unless you turn it on. Once a week NitroLog checks NHTSA&apos;s recall list, and this tells you only when a new recall comes out for one of your vehicles. Recalls already on file sit quietly at the bottom of each vehicle&apos;s page.</span></span>
       </label>
       <label className="check-row alert-switch">
         <input type="checkbox" checked={me.priceAlerts} onChange={e => setMe({ priceAlerts: e.target.checked })} />
-        <span><b>Price drops</b><br /><span className="form-hint">Once a day NitroLog checks the parts you watch, and tells you when one drops at least 5% below what it was. Tap <b>Watch price</b> on a part with a store link to add it.</span></span>
+        <span><b>Price drops</b><br /><span className="form-hint">Once a day NitroLog checks the parts you watch, and tells you when one drops at least 5% below what it was. Tick <b>Watch price</b> on a part with a store link, on the Parts page or a service record.</span></span>
       </label>
       {watches && watches.length > 0 && (
         <div className="row-list watch-list">

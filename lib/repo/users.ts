@@ -32,7 +32,7 @@ function checkUsername(username: unknown, exceptId?: number): string {
 export function createUser(username: unknown, password: unknown, isAdmin: unknown, units?: { distance?: unknown; volume?: unknown }) {
   const name = checkUsername(username);
   const pw = checkPassword(password);
-  const info = db.prepare("INSERT INTO users (username, password, is_admin, distance_unit, volume_unit) VALUES (?, ?, ?, ?, ?)")
+  const info = db.prepare("INSERT INTO users (username, password, is_admin, distance_unit, volume_unit, recall_alerts) VALUES (?, ?, ?, ?, ?, 0)")
     .run(name, bcrypt.hashSync(pw, 12), isAdmin ? 1 : 0, units?.distance === "km" ? "km" : "mi", units?.volume === "L" ? "L" : "gal");
   return Number(info.lastInsertRowid);
 }

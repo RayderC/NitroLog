@@ -264,3 +264,27 @@ export type PriceWatch = {
   /** Why the last check couldn't read a price. */
   problem: string | null;
 };
+
+/** A part or fluid from past service records, for the Parts page. */
+export type UsedPart = {
+  /** Kind, name, number and brand: the same part bought again has the same key. */
+  key: string;
+  kind: ServiceItem["kind"];
+  name: string;
+  brand: string | null;
+  partNumber: string | null;
+  unit: string | null;
+  uses: number;
+  totalQuantity: number;
+  spentCents: number;
+  lastDate: string;
+  firstDate: string;
+  /** What one cost the last time a price was logged. For a fluid, what the line cost. */
+  lastUnitCents: number | null;
+  /** The newest store link saved for it. */
+  url: string | null;
+  lastServiceId: number;
+  vehicles: { id: number; name: string }[];
+  /** How many are on the shelf, when it's also kept in stock. */
+  onHand: number | null;
+};
