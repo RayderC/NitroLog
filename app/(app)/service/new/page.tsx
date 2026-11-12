@@ -10,7 +10,7 @@ function NewService() {
     const n = Number(params.get(key));
     return Number.isInteger(n) && n > 0 ? n : undefined;
   };
-  return <ServiceForm initialVehicle={number("vehicle")} initialSchedule={number("schedule")} />;
+  return <ServiceForm initialVehicle={number("vehicle")} initialSchedule={number("schedule")} sentPart={params.get("part")} />;
 }
 
 export default function NewServicePage() {

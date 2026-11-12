@@ -1745,3 +1745,24 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: inver
 .link-paste-row { display: flex; gap: 8px; }
 .link-paste-row .form-input { flex: 1; min-width: 0; }
 .link-paste-row .btn-secondary { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; }
+
+
+/* Price paid, beside the store link */
+.link-paste-price { width: 110px; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .link-paste-row { flex-wrap: wrap; }
+  .link-paste-row #part-link { flex-basis: 100%; }
+  .link-paste-price { flex: 1; width: auto; }
+}
+
+/* ── Settings: Send to NitroLog bookmark ── */
+.send-btn-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.send-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; cursor: grab;
+  background: linear-gradient(135deg, var(--primary), #6d28d9); color: #fff; font-weight: 700; font-size: 13px;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.4); user-select: none; text-decoration: none;
+}
+.send-steps summary { cursor: pointer; color: var(--primary-light); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.send-steps[open] summary { color: var(--accent-cyan); }
+.sent-note { padding: 10px 12px; margin-bottom: 12px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text);
+  background: rgba(34, 211, 238, 0.06); border: 1px solid rgba(34, 211, 238, 0.3); }

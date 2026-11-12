@@ -5,6 +5,7 @@ import { useState } from "react";
 import Icon from "@/app/components/Icon";
 import { useMe } from "@/app/components/MeContext";
 import PushCard from "@/app/components/PushCard";
+import SendButtonSetup from "@/app/components/SendButtonSetup";
 import { api, localDay } from "@/lib/client";
 
 export default function SettingsPage() {
@@ -45,6 +46,7 @@ export default function SettingsPage() {
 
       <PushCard />
 
+      <SendButtonSetup />
       <div className="card section">
         <div className="card-title" style={{ marginBottom: 6 }}>Your data</div>
         <div className="settings-row">

@@ -10,6 +10,7 @@ import LinkPaste, { type LinkedPart } from "@/app/components/LinkPaste";
 import PartNameInput from "@/app/components/PartNameInput";
 import PriceCheck from "@/app/components/PriceCheck";
 import { api, fmtDate, localDay, parseNum, useApi } from "@/lib/client";
+import { parseProductTitle, priceToCents } from "@/lib/partText";
 import { SERVICE_CATEGORIES, type InventoryItem, type PartSuggestion, type PartsHistory, type ScheduleItem, type ServiceDetail, type ServiceItem, type Vehicle } from "@/lib/types";
 import { fmtMoney, meterUnit, readingFromInput, readingToInput, toCents } from "@/lib/units";
 
@@ -33,7 +34,39 @@ function rowFromItem(i: ServiceItem): PartRow {
 }
 
 /** New record when `serviceId` is missing. `initialVehicle` and `initialSchedule` come from "Log it" links. */
-export default function ServiceForm({ serviceId, initialVehicle, initialSchedule }: { serviceId?: number; initialVehicle?: number; initialSchedule?: number }) {
+/** What the "Send to NitroLog" bookmark reads off a store page: title, brand, part number, price, address, site. */
+type SentPart = { t?: unknown; b?: unknown; n?: unknown; p?: unknown; u?: unknown; s?: unknown };
+
+const STORE_NAMES: [RegExp, string][] = [[/amazon\./, "Amazon"], [/autozone\./, "AutoZone"], [/oreillyauto\./, "O'Reilly"], [/advanceautoparts\./, "Advance Auto Parts"], [/napaonline\./, "NAPA"], [/rockauto\./, "RockAuto"], [/walmart\./, "Walmart"]];
+const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+
+/** Turns what the bookmark sent into a part line. It only fills form fields, which are checked before saving. */
+function rowFromSent(raw: string): { row: PartRow; store: string } | null {
+  let d: SentPart;
+  try { d = JSON.parse(raw); } catch { return null; }
+  const title = text(d.t, 600);
+  if (!title) return null;
+  // "Visit the K&N Store" and "Brand: K&N" both mean K&N.
+  const brand = text(d.b, 80).replace(/^Visit the\s+/i, "").replace(/\s+Store$/i, "").replace(/^Brand:\s*/i, "") || null;
+  const t = parseProductTitle(title, brand);
+  const host = text(d.s, 100).toLowerCase();
+  const store = STORE_NAMES.find(([re]) => re.test(host))?.[1] ?? host.replace(/^www\./, "");
+  const paid = priceToCents(text(d.p, 40));
+  const qty = t.quantity && t.kind === "fluid" ? t.quantity : 1;
+  return {
+    store,
+    row: {
+      kind: t.kind, name: t.name, brand: t.brand ?? "", partNumber: text(d.n, 80) || t.partNumber || "",
+      quantity: String(qty), unit: t.kind === "fluid" ? (t.unit ?? "qt") : "",
+      // The page's price is the line total. A fluid's quantity is the jug's size, not how many were bought.
+      unitCents: t.kind === "fluid" ? null : paid,
+      cost: paid !== null ? (paid / 100).toFixed(2) : "",
+      inventoryId: null,
+    },
+  };
+}
+
+export default function ServiceForm({ serviceId, initialVehicle, initialSchedule, sentPart }: { serviceId?: number; initialVehicle?: number; initialSchedule?: number; sentPart?: string | null }) {
   const { me } = useMe();
   const router = useRouter();
   const { data: vehicles } = useApi<Vehicle[]>("/api/vehicles");
@@ -58,6 +91,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
   const { data: schedule } = useApi<ScheduleItem[]>(vehicleId ? `/api/vehicles/${vehicleId}/schedule?today=${localDay()}` : null);
   const { data: history } = useApi<PartsHistory>(vehicleId ? `/api/vehicles/${vehicleId}/parts-history` : null);
   const [usedLastTime, setUsedLastTime] = useState<number[]>([]);
+  const [sentNote, setSentNote] = useState("");
 
   // Copy an existing record into the form once, after both it and its vehicle have loaded.
   useEffect(() => {
@@ -76,6 +110,24 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     setTasks(existing.scheduleIds);
     setLoaded(true);
   }, [existing, vehicles, loaded, me.distanceUnit]);
+
+  // A part sent by the "Send to NitroLog" bookmark goes in once, and leaves the address so a reload doesn't add it again.
+  useEffect(() => {
+    if (!sentPart || serviceId) return;
+    const got = rowFromSent(sentPart);
+    if (got) {
+      setParts(ps => [...ps, got.row]);
+      setSentNote(`Added from ${got.store}${got.row.cost ? `, at $${got.row.cost}` : " (no price found on that page, so type it)"}. Check the details and save.`);
+    } else setSentNote("The store page didn't send anything NitroLog could read. Add the part by hand.");
+    window.history.replaceState(null, "", window.location.pathname + (initialVehicle ? `?vehicle=${initialVehicle}` : ""));
+  }, [sentPart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // With only one vehicle to log against, choose it.
+  useEffect(() => {
+    if (serviceId || vehicleId !== null || !vehicles) return;
+    const ok = vehicles.filter(v => v.role !== "viewer" && !v.archived);
+    if (ok.length === 1) setVehicleId(ok[0].id);
+  }, [vehicles, serviceId, vehicleId]);
 
   // On a new record, start the reading from the vehicle's current one.
   useEffect(() => {
@@ -132,11 +184,15 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
     return [{ id, name: schedule?.find(s => s.id === id)?.name ?? "this", date: last.date, items }];
   });
 
-  /** A part read from a store link goes into an empty line if there is one, or a new one. */
-  function addFromLink(l: LinkedPart) {
+  /** A part read from a store link, with the price typed beside it, goes into an empty line if there is one. */
+  function addFromLink(l: LinkedPart, paidCents: number | null) {
+    const qty = l.kind === "fluid" && l.quantity ? l.quantity : 1;
     const row: PartRow = {
-      ...blankPart("part"), name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "",
-      unitCents: l.priceCents, cost: l.priceCents !== null ? (l.priceCents / 100).toFixed(2) : "",
+      ...blankPart(l.kind), name: l.name, brand: l.brand ?? "", partNumber: l.partNumber ?? "",
+      quantity: String(qty), unit: l.kind === "fluid" ? (l.unit ?? "qt") : "",
+      // What you paid is the line's total. A fluid's quantity is the size of the jug, not how many you bought.
+      unitCents: paidCents !== null && l.kind !== "fluid" ? paidCents : null,
+      cost: paidCents !== null ? (paidCents / 100).toFixed(2) : "",
     };
     const empty = parts.findIndex(x => !x.name.trim() && !x.partNumber.trim());
     setParts(empty >= 0 ? parts.map((x, i) => (i === empty ? { ...row, kind: x.kind, unit: x.unit } : x)) : [...parts, row]);
@@ -261,6 +317,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
 
           <section className="section">
             <div className="section-header"><h2 className="section-title">Parts &amp; fluids</h2></div>
+            {sentNote && <p className="sent-note">{sentNote}</p>}
             {!readOnly && lastTimeOffers.map(o => (
               <div key={o.id} className="last-time">
                 <div>
@@ -310,7 +367,7 @@ export default function ServiceForm({ serviceId, initialVehicle, initialSchedule
                 <button type="button" className="add-set-btn" onClick={() => setParts([...parts, blankPart("fluid")])}><Icon name="plus" size={14} /> Fluid</button>
               </div>
             )}
-            {!readOnly && <LinkPaste onPart={addFromLink} />}
+            {!readOnly && <LinkPaste onPart={addFromLink} currency={currency} />}
             {!readOnly && !!inventory?.length && (
               <select className="form-select stock-picker" aria-label="Add a part from your inventory" value="" onChange={e => addFromStock(Number(e.target.value))}>
                 <option value="">Use a part from your inventory…</option>

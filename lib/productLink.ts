@@ -1,17 +1,25 @@
-// Fills in a part from a store link you paste. Product links at Amazon, AutoZone and O'Reilly spell out
-// the product, so this reads the link itself and never the store's page: those stores don't offer apps a
-// way to read their pages or prices, so the price is typed by hand. Live prices come from eBay's API instead.
+// Fills in a part from a store link you paste. AutoZone and O'Reilly links spell out the product, so those are
+// read from the link alone (both stores refuse apps). For Amazon, NitroLog asks for that one page, saying who
+// it is, and uses the title Amazon serves it. It never poses as a browser: if Amazon says no, it falls back to
+// the words in the link. Prices aren't in what Amazon serves apps, so they're typed, or come from the
+// "Send to NitroLog" button, which reads the page you're looking at in your own browser.
 import { HttpError, bad } from "./api";
+import { BRANDS, parseProductTitle } from "./partText";
 
 export type LinkedPart = {
   store: "Amazon" | "AutoZone" | "O'Reilly";
+  kind: "part" | "fluid";
   name: string;
   brand: string | null;
   partNumber: string | null;
   /** Always null: store pages aren't read. Kept so the form can take a price if a source ever offers one. */
   priceCents: number | null;
-  /** True when the link named the product. False for a bare Amazon link, where the name has to be typed. */
+  quantity: number | null;
+  unit: string | null;
+  /** True when the product's name was found. False for a bare Amazon link Amazon wouldn't describe. */
   named: boolean;
+  /** Where the details came from: the title Amazon served, or only the words in the link. */
+  from: "title" | "link";
   url: string;
 };
 
@@ -22,20 +30,6 @@ const STORES: { store: LinkedPart["store"]; hosts: RegExp }[] = [
 ];
 const SHORT = /^(a\.co|amzn\.to|amzn\.com)$/;
 
-/** Brands as they're spelled in store links, mapped to how they're written. Unknown brands stay blank. */
-const BRANDS: Record<string, string> = {
-  "k-n": "K&N", kn: "K&N", stp: "STP", wix: "WIX", fram: "FRAM", "mobil-1": "Mobil 1", mobil1: "Mobil 1", mobil: "Mobil",
-  duralast: "Duralast", "duralast-gold": "Duralast Gold", bosch: "Bosch", acdelco: "ACDelco", "ac-delco": "ACDelco",
-  motorcraft: "Motorcraft", mopar: "Mopar", valvoline: "Valvoline", castrol: "Castrol", pennzoil: "Pennzoil",
-  "royal-purple": "Royal Purple", amsoil: "AMSOIL", purolator: "Purolator", champion: "Champion", ngk: "NGK", denso: "Denso",
-  autolite: "Autolite", moog: "Moog", monroe: "Monroe", bilstein: "Bilstein", kyb: "KYB", gates: "Gates", dayco: "Dayco",
-  brembo: "Brembo", wagner: "Wagner", raybestos: "Raybestos", akebono: "Akebono", "power-stop": "Power Stop", powerstop: "Power Stop",
-  hawk: "Hawk", ebc: "EBC", centric: "Centric", prestone: "Prestone", peak: "Peak", "rain-x": "Rain-X", "lucas-oil": "Lucas Oil",
-  lucas: "Lucas", "sea-foam": "Sea Foam", brakebest: "BrakeBest", "brakebest-select": "BrakeBest Select", precision: "Precision",
-  microgard: "MicroGard", "super-start": "Super Start", "import-direct": "Import Direct", ultima: "Ultima", murray: "Murray",
-  omnispark: "OmniSpark", valucraft: "Valucraft", spectre: "Spectre", edelbrock: "Edelbrock", dorman: "Dorman", standard: "Standard",
-  walker: "Walker", magnaflow: "MagnaFlow", flowmaster: "Flowmaster", "liqui-moly": "Liqui Moly", "k-and-n": "K&N",
-};
 
 const title = (words: string[]) => words.map(w => (/\d/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
 
@@ -59,7 +53,7 @@ function takePartNumber(words: string[]): { partNumber: string | null; rest: str
   return { partNumber: last.toUpperCase(), rest: words.slice(0, -1) };
 }
 
-type Parsed = Omit<LinkedPart, "url" | "store">;
+type Parsed = Omit<LinkedPart, "url" | "store" | "kind" | "quantity" | "unit" | "from">;
 
 function fromAutoZone(u: URL): Parsed {
   // /p/stp-extended-life-engine-oil-filter-s5xl/663654, sometimes after a category path.
@@ -148,6 +142,52 @@ async function expandShortLink(start: URL): Promise<URL> {
   return url;
 }
 
+/** Says who's asking. Amazon serves this a light page with the product's full title. */
+const AGENT = "NitroLog/1.0 (personal vehicle maintenance log; reads one product page a person pasted)";
+
+/**
+ * The product's title from the page Amazon serves NitroLog, or null when Amazon doesn't describe it.
+ * Follows redirects by hand so every hop stays on Amazon, and reads only the start of the page.
+ */
+async function amazonTitle(start: URL): Promise<string | null> {
+  let url = start;
+  for (let hop = 0; hop < 4; hop++) {
+    let res: Response;
+    try {
+      res = await fetch(url, { redirect: "manual", headers: { "User-Agent": AGENT, Accept: "text/html" }, signal: AbortSignal.timeout(10_000) });
+    } catch { return null; }
+    if (res.status >= 300 && res.status < 400) {
+      res.body?.cancel().catch(() => {});
+      const next = res.headers.get("location");
+      if (!next) return null;
+      const n = new URL(next, url);
+      if (storeOf(n) !== "Amazon") return null;
+      url = n;
+      continue;
+    }
+    if (!res.ok || !res.body) { res.body?.cancel().catch(() => {}); return null; }
+    // The title is near the top. Stop reading after the first megabyte.
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (size < 1_000_000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); size += value.length;
+      const sofar = Buffer.concat(chunks).toString("utf8");
+      const m = sofar.match(/<meta name="title" content="([^"]{4,600})"/) ?? sofar.match(/id="productTitle"[^>]*>\s*([^<]{4,600})</);
+      if (m) { reader.cancel().catch(() => {}); return decode(m[1]); }
+    }
+    reader.cancel().catch(() => {});
+    return null;
+  }
+  return null;
+}
+
+const decode = (s: string) => s
+  .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/\s+/g, " ").trim();
+
 export async function partFromLink(raw: unknown): Promise<LinkedPart> {
   if (typeof raw !== "string" || raw.length > 2000) throw bad("Paste a link from Amazon, AutoZone or O'Reilly.");
   // Phones often share "Product name https://…", so find the link inside whatever was pasted.
@@ -157,7 +197,15 @@ export async function partFromLink(raw: unknown): Promise<LinkedPart> {
   const store = storeOf(u);
   if (!store) throw bad("Only Amazon, AutoZone and O'Reilly links work for now.");
   if (store === "Amazon" && SHORT.test(u.hostname.toLowerCase())) u = await expandShortLink(u);
+  const clean = `${u.origin}${u.pathname}`;
+  if (store === "Amazon") {
+    const title = await amazonTitle(new URL(clean));
+    if (title) {
+      const t = parseProductTitle(title);
+      return { store, ...t, priceCents: null, named: true, from: "title", url: clean };
+    }
+  }
   const part = store === "AutoZone" ? fromAutoZone(u) : store === "O'Reilly" ? fromOReilly(u) : fromAmazon(u);
   // Drop tracking and session bits before handing the link back.
-  return { store, ...part, url: `${u.origin}${u.pathname}` };
+  return { store, kind: "part", quantity: null, unit: null, ...part, from: "link", url: clean };
 }
